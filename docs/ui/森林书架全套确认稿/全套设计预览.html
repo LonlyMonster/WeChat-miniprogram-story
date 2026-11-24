@@ -1,0 +1,20 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>林间故事屋 · 全套 UI 确认稿</title>
+<style>*{box-sizing:border-box}body{margin:0;background:#fbf8ef;color:#234632;font:16px/1.65 system-ui,sans-serif}main{max-width:1260px;margin:auto;padding:24px clamp(14px,4vw,54px) 64px}h1{font-size:clamp(25px,4vw,40px);margin:0}nav{display:flex;gap:8px 20px;flex-wrap:wrap;border-block:1px solid #d5dcc9;padding:12px 0}a{color:#285539}section{margin:34px 0}h2{margin:0;font-size:24px}p{margin:6px 0 14px}img{display:block;width:100%;height:auto;border-radius:12px}</style>
+<main><h1>林间故事屋 · 全套 UI 确认稿</h1><p>点击图片查看原尺寸。首页以已确认母版为准，示例封面使用故事自身的插画。</p><nav id="nav"></nav><div id="gallery"></div></main>
+<script>
+const boards=[
+['首页母版','首页、账号菜单与注销','首页布局、木质层板、书脊、插画和色彩以此图为准。家庭账号菜单含修改密码、退出账号、注销账号。'],
+['书架','首页常态与空书架','每页两行，每行两本。页码可跳页；书名最多十字，溢出省略。按钮按进度显示「讲新故事」「继续讲」或「继续保存」。删除图标单独响应，确认框显示书名。'],
+['账号','登录、注册与修改密码','普通账号进入书架，管理员进入故事屋管理。临时密码登录后使用「设置新密码」，仅填写新密码和确认新密码。'],
+['讲述','单格讲述','录音按钮在同一位置切换开始和结束。转写期间显示「正在转写…」，成功后可编辑，失败保留已有文字。按钮等宽。'],
+['原格重试与命名','原格重试与故事命名','失败格保留原因与正文。取消收起编辑，重试使用当前格。命名保存后回到书架。'],
+['阅读与放大','阅读与单格查看','手机上一行一格，每页四格。点图放大，左右滑动；到首尾停止。'],
+['修改与对照','修改已保存的一格','进入时预填原文，可以改字或重录。候选与原版上下对照，采用时一起替换本格图文；采用第一格时同步更新封面。'],
+['管理端','用户管理与模型配置','最近登录日期与时分分行。重置密码前确认，生成后展示一次性临时密码和15分钟有效期；删除用户时说明账号、已保存故事及草稿的影响。管理账号菜单保留修改密码和退出。']
+,['操作确认','删除作品、重置密码与首次改密','临时密码画面使用示例文字。实际操作使用系统生成的密码。']
+];
+for(const [i,[file,title,note]] of boards.entries()){
+const link=document.createElement('a');link.href='#view'+i;link.textContent=title;nav.append(link);
+const section=document.createElement('section');section.id='view'+i;const h=document.createElement('h2');h.textContent=title;const p=document.createElement('p');p.textContent=note;
+const a=document.createElement('a');a.href=file+'.png';const img=new Image();img.src=a.href;img.alt=title;img.loading=i?'lazy':'eager';a.append(img);section.append(h,p,a);gallery.append(section)}
+</script></html>

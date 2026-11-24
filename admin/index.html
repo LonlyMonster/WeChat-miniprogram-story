@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>模型配置 · 林间故事屋</title><link rel="stylesheet" href="/style.css"></head>
+<body><main class="admin"><header><b class="brand"><i aria-hidden="true"></i>故事屋管理</b><span>本地管理端</span></header>
+<h1>模型配置</h1><form id="settings"><fieldset disabled><legend>出图服务</legend>
+<label>服务商<select><option>阿里云百炼</option></select></label>
+<label>出图模型<select name="model"></select></label>
+<label>百炼 API Key<input type="password" name="key" autocomplete="off" maxlength="1024"></label><p id="key-state"></p>
+<label>全站月预算（元）<input name="budget" type="number" min="0" step=".01" required></label>
+<label>每账号每月额度（张）<input name="quota" type="number" min="0" step="1" required></label>
+<button class="primary">保存配置</button></fieldset></form><p role="status" id="status"></p>
+<footer><small>保存仅更新本机配置。真实出图联调时再验证密钥和额度。</small></footer></main><script type="module" src="/admin.js"></script></body></html>

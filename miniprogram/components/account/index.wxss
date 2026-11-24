@@ -1,0 +1,15 @@
+.menu-wrap{position:relative;color:#24452e}
+.account-trigger,.menu-item{display:flex;align-items:center;justify-content:center;gap:12rpx;background:#fff9eb;color:inherit;font-size:30rpx;line-height:1.4}
+.account-trigger{padding:7rpx 18rpx;margin:0;border:2rpx solid #557046;border-radius:40rpx}
+.menu{position:absolute;z-index:8;right:0;top:100%;width:248rpx;margin-top:8rpx;padding:8rpx 14rpx;background:#fffaf1;border:1px solid #d6cbb6;border-radius:18rpx;box-shadow:0 8rpx 24rpx #60482238}
+.menu-item{justify-content:flex-start;padding:14rpx 10rpx;margin:0;border-radius:0;background:transparent}
+.account-trigger::after,.menu-item::after{border:0}
+.danger{border-top:1px solid #d6cbb6;color:#ab392d}
+.icon{width:34rpx;height:34rpx}
+:host{display:block}
+.outside{position:fixed;inset:0;z-index:1}
+.account-trigger{position:relative;z-index:2;border:0;background:transparent;gap:10rpx;padding:5rpx 10rpx;font-size:26rpx}
+.menu{z-index:3;width:max-content;min-width:218rpx;padding:10rpx;border-radius:22rpx;box-sizing:border-box;animation:drop .14s ease-out}
+.menu-item{justify-content:flex-start;gap:10rpx;font-size:28rpx;padding:14rpx;border-radius:16rpx}
+.danger{background:#fae9dc;border:0;color:#953d31}
+@keyframes drop{from{opacity:0;transform:translateY(-8rpx)}to{opacity:1;transform:translateY(0)}}

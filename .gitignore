@@ -1,0 +1,10 @@
+.voice-env/
+.preview/
+project.private.config.json
+*.sqlite
+*.sqlite-*
+.env
+.env.*
+!.env.example
+node_modules/
+__pycache__/

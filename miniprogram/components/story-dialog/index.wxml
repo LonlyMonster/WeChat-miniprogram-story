@@ -1,0 +1,6 @@
+<view><view wx:if="{{visible}}" class="shade"><view class="dialog" aria-role="alertdialog" aria-label="{{title}}">
+  <view class="title">{{title}}</view><view class="copy">{{content}}</view><view class="actions">
+    <button wx:if="{{showCancel}}" bindtap="cancel">{{cancelText}}</button>
+    <button class="{{destructive?'danger':'primary'}}" bindtap="confirm">{{confirmText}}</button>
+  </view></view></view>
+</view>

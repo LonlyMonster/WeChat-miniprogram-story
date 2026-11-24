@@ -1,0 +1,31 @@
+<page-meta page-style="{{section==='users'?'overflow:hidden;':''}}"/>
+<image webp="{{true}}" class="wall" mode="scaleToFill" src="/watercolor/forest-original.webp"/>
+<view wx:if="{{allowed}}" class="page {{section==='users'?'users-page':''}}">
+  <view class="top"><text class="brand">故事屋管理</text><account/></view>
+  <view class="tabs">
+    <button class="{{section==='users'?'selected':''}}" data-section="users" bindtap="switchTab" disabled="{{busy}}">用户管理</button>
+    <button class="{{section==='config'?'selected':''}}" data-section="config" bindtap="switchTab" disabled="{{busy}}">模型配置</button>
+  </view>
+  <view class="panel"><view class="title">{{section==='config'?'模型配置':'用户管理'}}</view>
+  <form wx:if="{{ready && section==='config'}}" class="settings" bindsubmit="save">
+    <label>出图服务商及模型</label>
+    <picker range="{{models}}" value="{{selected}}" bindchange="choose"><view class="choice">阿里云百炼 / {{models[selected]}} ▾</view></picker>
+
+    <label>全站月预算（元）<input name="budget" type="digit" value="{{config.budget}}"/></label>
+    <label>每账号月额度（张）<input name="quota" type="number" value="{{config.quota}}"/></label>
+        <label>API Key · {{config.configured?'已配置':'待配置'}}<view class="field"><image class="icon" mode="aspectFit" src="/watercolor/lock.png"/><input name="key" value="{{key}}" password="{{!showKey}}" maxlength="1024" placeholder="{{config.configured?'留空沿用现有密钥':'请输入百炼 API Key'}}"/><button aria-label="显示或隐藏密钥" bindtap="toggleKey"><image class="icon" mode="aspectFit" src="/watercolor/{{showKey?'eye-off':'eye'}}.png"/></button></view></label>
+    <button class="primary" form-type="submit" loading="{{busy}}" disabled="{{busy}}">保存配置</button>
+  </form>
+  <view wx:if="{{ready && section==='users'}}" class="users">
+    <view class="user-row headings"><text>用户名</text><text>最近登录时间</text><text>操作</text></view>
+    <view class="user-list"><view wx:for="{{visibleUsers}}" wx:key="name" class="user-row"><text>{{item.name}}</text>
+      <view class="login-time"><view>{{item.last.date}}</view><view wx:if="{{item.last.time}}">{{item.last.time}}</view></view>
+      <view wx:if="{{item.role==='family'}}" class="user-actions">
+      <button data-name="{{item.name}}" bindtap="reset" disabled="{{busy}}">重置密码</button>
+      <button class="remove-user" data-name="{{item.name}}" data-key="{{item.account_key}}" bindtap="removeUser" disabled="{{busy}}">删除用户</button>
+    </view><text wx:else>管理员</text></view></view>
+    <view wx:if="{{userPages>1}}" class="user-pager"><button disabled="{{userPage===1 || busy}}" bindtap="previousUsers">上一页</button><text>{{userPage}} / {{userPages}}</text><button disabled="{{userPage===userPages || busy}}" bindtap="nextUsers">下一页</button></view>
+  </view>
+  <text wx:if="{{message}}" class="muted">{{message}}</text>
+</view></view>
+<story-dialog id="confirmation"/>

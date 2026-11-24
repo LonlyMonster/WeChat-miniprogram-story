@@ -1,0 +1,4 @@
+.shade{position:fixed;inset:0;z-index:120;background:#29342464;display:flex;align-items:center;justify-content:center}
+.dialog{width:84%;box-sizing:border-box;background:#fff8e7;color:#323e29;border:1px solid #bdab81;border-radius:28rpx;padding:36rpx;box-shadow:0 12rpx 44rpx #30261922}
+.title{font:bold 46rpx/1.25 serif}.copy{margin:24rpx 0;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}
+.actions{display:flex;gap:16rpx}.actions button{flex:1;padding:14rpx 12rpx;border:1px solid #81916b;border-radius:18rpx;background:#fff9e8;color:#323e29;font:600 28rpx/1.45 sans-serif}.actions button::after{border:0}.actions .primary{background:#425d39;color:#fff9e8}.actions .danger{color:white;background:#934f3d;border-color:#934f3d}

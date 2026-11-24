@@ -1,0 +1,42 @@
+<image webp="{{true}}" class="wall" mode="scaleToFill" src="/watercolor/writing.webp"/>
+<view class="page">
+  <view wx:if="{{state==='draft'}}">
+    <view class="panel"><view class="title forest-title">讲第 {{cells.length+1}} 格</view>
+    <view class="voice-card">
+      <view class="voice-hint"><text wx:if="{{voice==='recording'}}" class="record-dot"/>{{voice==='recording'?'正在听…':voice==='processing'?'正在转成文字…':spoken?'请核对本格文字':'每格最多讲 60 秒'}}</view>
+      <button wx:if="{{voice==='recording'}}" class="voice-action primary stop" bindtap="endRecording"><image class="icon" src="/watercolor/stop.png" mode="aspectFit"/>这格讲完了</button>
+      <button wx:else class="voice-action" disabled="{{busy || voice}}" bindtap="record"><image wx:if="{{!voice}}" class="icon" mode="aspectFit" src="{{spoken?'/watercolor/retell.png':'/watercolor/mic.png'}}"/>{{voice==='processing'?'转写中…':voice==='starting'?'准备录音…':voice==='stopping'?'结束录音中…':spoken?'重新讲':'开始讲'}}</button>
+      <view wx:if="{{voiceError}}" class="error">{{voiceError}}</view>
+      <label>本格文字（最多 100 字）<textarea value="{{text}}" bindinput="editText" maxlength="{{spoken ? -1 : 100}}" placeholder="也可以直接输入这一格的故事" disabled="{{busy || voice}}"/></label>
+      <button class="primary voice-action" bindtap="submit" data-action="cell" disabled="{{busy || voice || !text}}">生成这格</button>
+    </view></view>
+    <view wx:for="{{cells}}" wx:key="id" class="card pad">
+      <view class="cell-heading">第 {{index+1}} 格</view>
+      <image wx:if="{{item.path}}" class="panel-image" src="{{item.path}}" mode="widthFix"/>
+      <view wx:elif="{{item.error}}" class="cell-warning"><image class="icon" src="/watercolor/warning.png" mode="aspectFit"/> {{item.error}}</view>
+      <view wx:else class="muted">图片生成中…</view>
+      <block wx:if="{{editJob && editJob===item.retryJob}}">
+        <label>本格文字（最多 100 字）<textarea value="{{editWords}}" bindinput="editRetry" maxlength="100" disabled="{{busy}}"/></label>
+        <view class="retry-actions">
+          <button class="voice-action" bindtap="cancelRetry" disabled="{{busy}}">取消</button>
+          <button class="voice-action primary" bindtap="retryCell" disabled="{{busy || voice || !editWords}}">重试</button>
+        </view>
+      </block>
+      <block wx:else>
+        <text>{{item.text}}</text>
+        <button wx:if="{{item.retryJob}}" class="voice-action open-retry" bindtap="openRetry" data-index="{{index}}" disabled="{{busy || voice || editJob}}">修改或重试</button>
+      </block>
+    </view>
+    <view class="finish-row"><button class="voice-action" bindtap="submit" data-action="finish" disabled="{{busy || voice || editJob || !cells.length}}">故事结束</button></view>
+    
+  </view>
+  <view wx:elif="{{state==='ended'}}" class="panel">
+    <view class="title">给故事起个名字</view>
+    <form class="name-form" bindsubmit="submit" data-action="save">
+      <view class="name-field"><input aria-label="故事名称（最多 10 字）" class="name-input" name="title" maxlength="10" placeholder="输入故事名称（最多 10 字）"/></view>
+      <button class="primary name-save" form-type="submit" disabled="{{busy}}">保存到书架</button>
+    </form>
+  </view>
+  <button wx:if="{{!state && loadFailed}}" bindtap="refresh">重新加载故事</button>
+</view>
+<story-dialog wx:if="{{confirmingFinish}}" id="confirmation"/>

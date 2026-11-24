@@ -1,0 +1,7 @@
+<image webp="{{true}}" class="wall" src="/watercolor/forest-original.webp" mode="scaleToFill"/>
+<view class="page"><view wx:if="{{checking}}" class="muted">正在检查登录状态…</view>
+<form wx:else class="panel" bindsubmit="submit"><view class="title">{{signup?'创建家庭账号':'登录我的书架'}}</view>
+<label>用户名<view class="field"><image class="icon" mode="aspectFit" src="/watercolor/account.png"/><input name="username" maxlength="96" placeholder="用户名"/></view></label>
+<label>密码</label><view class="field"><image class="icon" mode="aspectFit" src="/watercolor/lock.png"/><input name="password" aria-label="密码" password="{{!showPassword}}" maxlength="256" placeholder="密码"/><button aria-label="{{showPassword?'隐藏密码':'显示密码'}}" bindtap="toggleVisibility"><image class="icon" mode="aspectFit" src="/watercolor/{{showPassword?'eye-off':'eye'}}.png"/></button></view>
+<button class="primary" form-type="submit" loading="{{busy}}" disabled="{{busy}}">{{signup?'注册并进入书架':'登录书架'}}</button>
+<button class="link" bindtap="toggle">{{signup?'去登录':'注册账号'}}</button></form></view>
