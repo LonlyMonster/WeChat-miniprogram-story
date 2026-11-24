@@ -1,0 +1,26 @@
+page{background:#fbf1da;color:#323e29;font:15px/1.45 sans-serif}
+.wall{position:fixed;top:0;left:0;display:block;width:100vw;height:100vh;pointer-events:none}
+.page{position:relative;box-sizing:border-box;min-height:100vh;padding:23vh 34rpx calc(50rpx + env(safe-area-inset-bottom))}
+.panel,.card{display:block;box-sizing:border-box;background:#fff9eaf5;border:1px solid #c3ad7c;border-radius:34rpx;padding:36rpx 38rpx;margin-bottom:20rpx}
+.title,.brand,.cell-heading{font-family:serif;font-weight:700}
+.title{font-size:46rpx;margin-bottom:28rpx}
+.brand{font-size:32rpx}
+button,.choice,.pick{box-sizing:border-box;border:1px solid #81916b;border-radius:18rpx;background:#fff9e8;color:#323e29;padding:14rpx 22rpx;font:600 28rpx/1.45 sans-serif;margin:0;min-height:76rpx;display:flex;align-items:center;justify-content:center;gap:12rpx}
+button::after{border:0}
+button.primary{background:#425d39;border-color:#425d39;color:#fff9e8}
+button[disabled]{opacity:.45}
+button.link{background:transparent;border:0;text-decoration:underline}
+.icon{width:38rpx;height:38rpx;flex:none}
+.primary .icon,.stop .icon{filter:brightness(0) invert(1)}
+label{display:block;font-size:25rpx;font-weight:600}
+input,textarea,.choice{box-sizing:border-box;width:100%;background:#fffdf5;color:#323e29;border:1px solid #bcab87;border-radius:16rpx;padding:15rpx 18rpx;font:normal 28rpx/1.45 sans-serif;margin:8rpx 0 18rpx}
+input{height:78rpx}textarea{height:176rpx}
+.field{display:flex;align-items:center;gap:14rpx;padding:0 16rpx;background:#fffdf5;border:1px solid #bcab87;border-radius:16rpx;margin:8rpx 0 18rpx}
+.field input{flex:1;min-width:0;background:transparent;border:0;margin:0;padding:0}
+.field button{min-height:0;padding:8rpx;border:0;background:transparent}
+.top,.row{display:flex;align-items:center;justify-content:space-between;gap:16rpx}
+.top{position:relative;z-index:3;padding:9rpx 19rpx;background:#fff7e7eb;border-radius:22rpx;margin-bottom:17rpx}
+.panel-image{display:block;width:100%;border-radius:16rpx;margin:12rpx 0}
+.muted,.voice-hint,.sub{font-size:23rpx;font-weight:400;color:#686b53}
+.error,.cell-warning{color:#934f3d;margin:12rpx 0}
+.primary,.voice-action,.name-save{width:100%}

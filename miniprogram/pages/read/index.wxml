@@ -1,0 +1,19 @@
+<image webp="{{true}}" class="wall" mode="scaleToFill" src="/watercolor/forest-original.webp"/>
+
+<view wx:if="{{viewing}}" class="viewer">
+  <button class="viewer-close" bindtap="closeViewer" aria-label="关闭单格查看"><image class="icon" src="/watercolor/close.png" mode="aspectFit"/></button>
+  <swiper class="viewer-pages" current="{{current}}" bindchange="slide">
+    <swiper-item wx:for="{{cells}}" wx:key="id"><view class="viewer-cell">
+      <image wx:if="{{item.path}}" class="viewer-picture" src="{{item.path}}" mode="aspectFit"/>
+      <view wx:else class="muted">{{item.error||'图片待加载'}}</view>
+      <scroll-view scroll-y class="viewer-text">{{item.text}}</scroll-view>
+      <view class="sub">{{index+1}} / {{cells.length}}</view>
+    </view></swiper-item>
+  </swiper>
+</view>
+<view wx:else class="page"><view class="panel"><view class="title">{{title}}</view>
+  <view wx:for="{{cells}}" wx:key="id" class="read-cell"><view class="read-art">
+    <image wx:if="{{item.path}}" class="panel-image" src="{{item.path}}" mode="widthFix" data-index="{{index}}" bindtap="preview"/>
+    <text wx:else>{{item.error||'图片待加载'}}</text>
+    <button wx:if="{{item.ready}}" class="edit-badge" bindtap="edit" data-cell="{{item.id}}" aria-label="修改这格"><image class="icon" src="/watercolor/edit.png" mode="aspectFit"/></button>
+  </view><view>第 {{index+1}} 格 · {{item.text}}</view></view></view></view>

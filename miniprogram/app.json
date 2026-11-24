@@ -1,0 +1,17 @@
+{
+  "pages": [
+    "pages/login/index",
+    "pages/shelf/index",
+    "pages/admin/index",
+    "pages/password/index",
+    "pages/read/index",
+    "pages/write/index",
+    "pages/edit/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "林间故事屋",
+    "navigationBarBackgroundColor": "#fbf1da",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#fbf1da"
+  }
+}

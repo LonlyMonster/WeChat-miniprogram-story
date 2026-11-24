@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="mark-title">
+  <title id="mark-title">林间故事屋 · 四叶草小屋</title>
+  <defs>
+    <path id="petal" d="M0-1C-4-5-15-12-15-19c0-7 9-11 15-4 6-7 15-3 15 4C15-12 4-5 0-1Z"/>
+  </defs>
+  <path d="M33 32c-2 12 1 21 12 27" fill="none" stroke="#245941" stroke-width="4.5" stroke-linecap="round"/>
+  <g transform="translate(31 30) rotate(-38)">
+    <use href="#petal" fill="#51855e"/>
+    <use href="#petal" transform="rotate(90)" fill="#78a36a"/>
+    <use href="#petal" transform="rotate(180)" fill="#376f50"/>
+    <use href="#petal" transform="rotate(270)" fill="#649564"/>
+  </g>
+  <path d="m20 29 10-9a2 2 0 0 1 3 0l10 9-3 1v11H23V30Z" fill="#fff3cc"/>
+  <path d="M28 41v-7a3.5 3.5 0 0 1 7 0v7Z" fill="#28583f"/>
+</svg>

@@ -1,2 +1,2 @@
-# WeChat-miniprogram-story
-森林故事屋
+# story
+亲子故事小程序

@@ -1,0 +1,23 @@
+<image webp="{{true}}" class="wall" mode="scaleToFill" src="/watercolor/writing.webp"/>
+<view class="page"><view class="panel">
+  <view class="title">{{stage==='compare'?'第':'修改第'}} {{number||'…'}} 格{{stage==='compare'?' · 版本对照':''}}</view>
+  <block wx:if="{{stage==='edit'}}"><view class="sub">{{voice==='recording'?'正在听…':'每格最多讲 60 秒'}}</view>
+
+    <view wx:if="{{voiceError}}" class="error">{{voiceError}}</view>
+    
+    <button wx:if="{{voice==='recording'}}" class="record-button primary" bindtap="endRecording"><image class="icon" src="/watercolor/stop.png" mode="aspectFit"/>这格讲完了</button>
+    <button wx:else class="record-button" bindtap="record" disabled="{{busy || voice || unknown}}"><image wx:if="{{!voice}}" class="icon" mode="aspectFit" src="/watercolor/retell.png"/>{{voice==='starting'?'正在启动麦克风…':voice==='stopping'?'正在结束录音…':voice==='processing'?'正在转写…':'重新讲'}}</button>
+        <label>本格文字（最多 100 字）<textarea value="{{text}}" maxlength="-1" bindinput="edit" disabled="{{busy || voice || unknown}}"/></label>
+    <button class="primary" bindtap="generate" disabled="{{busy || voice || unknown || !text}}">重新生成这格</button>
+  </block>
+  <view wx:elif="{{stage==='waiting'}}" class="muted">正在生成并审核新版…</view>
+  <block wx:elif="{{stage==='compare'}}">
+    <view class="version"><view>原版</view><view class="frame"><image class="panel-image" src="{{originalPath}}" mode="widthFix"/></view><text>{{original}}</text></view>
+    <view class="version"><view>新版</view><view class="frame"><image class="panel-image" src="{{newPath}}" mode="widthFix"/></view><text>{{text}}</text></view>
+    <view class="row"><button data-action="discard" bindtap="decide" disabled="{{busy}}">保留原版</button><button class="primary" data-action="adopt" bindtap="decide" disabled="{{busy}}">采用新版</button></view>
+  </block>
+  <button wx:elif="{{stage==='loading'}}" bindtap="load">加载原版</button>
+  <view wx:if="{{error}}" class="error">{{error}}</view>
+  <button wx:if="{{stage==='waiting' && error}}" bindtap="poll">刷新状态</button>
+  </view>
+</view>
