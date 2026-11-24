@@ -1,11 +1,13 @@
-.tabs{display:flex;margin:16rpx 0}.tabs button{flex:1;border-radius:15rpx}.tabs .selected{background:#466141;color:#fff}.user-row{display:grid;grid-template-columns:1fr 1fr 124rpx;align-items:center;gap:8rpx;padding:13rpx 0;border-bottom:1px solid #d8cbb1;font-size:23rpx}.headings{font-weight:700}.user-actions button{background:transparent;border:0;padding:4rpx 0;font-size:24rpx;min-height:52rpx}.user-actions .remove-user{color:#a33929}.choice{justify-content:flex-start}
+.tabs{display:flex;margin:16rpx 0}.tabs button{flex:1;border-radius:15rpx}.tabs .selected{background:#466141;color:#fff}.user-row{display:grid;grid-template-columns:1fr 1fr 124rpx;align-items:center;gap:8rpx;padding:13rpx 0;border-bottom:1px solid #d8cbb1;font-size:25rpx}.headings{font-weight:700}.user-actions button{background:transparent;border:0;padding:4rpx 0;font-size:inherit;min-height:52rpx}.user-actions .remove-user{color:#a33929}.choice{justify-content:flex-start}
 
 .page.users-page{position:fixed;inset:0;min-height:0;overflow:hidden;display:flex;flex-direction:column;padding-bottom:calc(12rpx + env(safe-area-inset-bottom))}
 .users-page .top,.users-page .tabs{flex:none}
+.users-page .tabs{margin-top:0}
 .users-page .panel{display:flex;flex-direction:column;max-height:100%;min-height:0;flex:1;margin:0}
 .users{display:flex;flex:1;min-height:0;flex-direction:column}
 .user-list .user-row{box-sizing:border-box;height:132rpx}
 .user-row>text:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .user-pager{display:flex;align-items:center;justify-content:space-between;height:76rpx;font-size:24rpx}
 .user-pager button{min-height:56rpx;padding:6rpx 16rpx;font-size:24rpx}
-@media(max-height:560px){.page.users-page{padding-top:10vh}.users-page .panel{padding-top:16rpx;padding-bottom:16rpx}}
+@media(max-height:560px){.users-page .panel{padding-top:16rpx;padding-bottom:16rpx}}
+.settings .amount-input{padding:0 18rpx}

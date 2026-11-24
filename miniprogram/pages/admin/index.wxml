@@ -11,8 +11,8 @@
     <label>出图服务商及模型</label>
     <picker range="{{models}}" value="{{selected}}" bindchange="choose"><view class="choice">阿里云百炼 / {{models[selected]}} ▾</view></picker>
 
-    <label>全站月预算（元）<input name="budget" type="digit" value="{{config.budget}}"/></label>
-    <label>每账号月额度（张）<input name="quota" type="number" value="{{config.quota}}"/></label>
+    <label>全站月预算（元）<input class="amount-input" name="budget" type="digit" value="{{config.budget}}"/></label>
+    <label>每账号月额度（张）<input class="amount-input" name="quota" type="number" value="{{config.quota}}"/></label>
         <label>API Key · {{config.configured?'已配置':'待配置'}}<view class="field"><image class="icon" mode="aspectFit" src="/watercolor/lock.png"/><input name="key" value="{{key}}" password="{{!showKey}}" maxlength="1024" placeholder="{{config.configured?'留空沿用现有密钥':'请输入百炼 API Key'}}"/><button aria-label="显示或隐藏密钥" bindtap="toggleKey"><image class="icon" mode="aspectFit" src="/watercolor/{{showKey?'eye-off':'eye'}}.png"/></button></view></label>
     <button class="primary" form-type="submit" loading="{{busy}}" disabled="{{busy}}">保存配置</button>
   </form>
