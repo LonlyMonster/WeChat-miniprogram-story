@@ -1,4 +1,6 @@
 import test from 'node:test'
+import {randomUUID} from 'node:crypto'
+process.env.STORY_INITIAL_ADMIN_PASSWORD = randomUUID()
 import assert from 'node:assert/strict'
 import {DatabaseSync} from 'node:sqlite'
 import {mkdtemp,rm} from 'node:fs/promises'
@@ -29,7 +31,7 @@ test('小程序角色分流、后台隔离、双端改密、退出',async t=>{
  assert.equal((await call('me',undefined,family)).role,'family')
  assert.equal((await call('shelf',undefined,family)).status,200)
  for(const path of ['admin/users','admin/config'])assert.equal((await call(path,undefined,family)).status,403)
- const creds={username:'admin',password:'admin15@'}
+ const creds={username:'admin',password:process.env.STORY_INITIAL_ADMIN_PASSWORD}
  const admin=await call('login',creds),second=await call('login',creds)
  assert.equal(admin.role,'admin')
  assert.equal((await call('shelf',undefined,admin.token)).status,403)
@@ -69,6 +71,7 @@ test('小程序角色分流、后台隔离、双端改密、退出',async t=>{
    }
  }finally{inspect.close()}
  const replacement=await call('register',victim)
+ assert.equal((await call('admin/reset',deletion,admin.token)).status,404)
  assert.equal((await call('admin/delete-user',deletion,admin.token)).status,404)
  assert.equal((await call('shelf',undefined,replacement.token)).books.length,0)
  const {config}=await call('admin/config',undefined,admin.token)
@@ -80,7 +83,7 @@ test('小程序角色分流、后台隔离、双端改密、退出',async t=>{
  assert.equal(JSON.stringify(written).includes(settings.key),false)
  assert.equal((await call('admin/config',{...settings,key:''},admin.token)).status,409)
  assert.equal((await call('admin/config',{...settings,key:'',version:written.config.version,quota:8},admin.token)).config.quota,8)
- const reset=await call('admin/reset',{username:'neighbor'},admin.token)
+ const reset=await call('admin/reset',{username:'neighbor',accountKey:users.find(u=>u.name==='neighbor').account_key},admin.token)
  assert.equal(reset.status,200)
  assert.equal((await call('me',undefined,other.token)).status,401)
  const tempCredentials={username:'neighbor',password:reset.temporary}
@@ -90,7 +93,7 @@ test('小程序角色分流、后台隔离、双端改密、退出',async t=>{
  assert.equal((await call('login',tempCredentials)).status,401)
  assert.equal((await call('password',{newPassword:'new-pass',confirmPassword:'new-pass'},limited.token)).status,200)
  assert.equal((await call('login',{username:'neighbor',password:'new-pass'})).mustChange,false)
- const change={currentPassword:'admin15@',newPassword:'second-pass',confirmPassword:'second-pass'}
+ const change={currentPassword:process.env.STORY_INITIAL_ADMIN_PASSWORD,newPassword:'second-pass',confirmPassword:'second-pass'}
  assert.equal((await call('password',{...change,currentPassword:'wrong'},admin.token)).status,400)
  assert.equal((await call('password',change,admin.token)).status,200)
  for(const token of [admin.token,second.token])assert.equal((await call('me',undefined,token)).status,401)
@@ -117,4 +120,23 @@ test('小程序角色分流、后台隔离、双端改密、退出',async t=>{
  finally{closedFamilyDb.close()}
  await call('logout',{},again.token)
  assert.equal((await call('me',undefined,again.token)).status,401)
+})
+test('只接受受信直连代理覆盖的客户端 IP，并保留账号限流',async t=>{
+ for(const trusted of [false,true]){
+  if(trusted)process.env.STORY_TRUSTED_PROXY='127.0.0.1'
+  else delete process.env.STORY_TRUSTED_PROXY
+  const app=createApp(':memory:')
+  delete process.env.STORY_TRUSTED_PROXY
+  await new Promise(r=>app.listen(0,'127.0.0.1',r))
+  try{
+   async function login(name,address){
+    return (await fetch('http://127.0.0.1:'+app.address().port+'/api/mini/login',{
+     method:'POST',headers:{'Content-Type':'application/json','X-Real-IP':address},body:JSON.stringify({username:name,password:'test'})
+    })).status
+   }
+   for(let i=1;i<=30;i++)assert.equal(await login('same','192.0.2.1'),401)
+   assert.equal(await login('other','192.0.2.2'),trusted?401:429)
+   assert.equal(await login('same','192.0.2.2'),429)
+  }finally{await new Promise(r=>app.close(r))}
+ }
 })

@@ -1,4 +1,6 @@
 import test from 'node:test'
+import {randomUUID} from 'node:crypto'
+process.env.STORY_INITIAL_ADMIN_PASSWORD = randomUUID()
 import assert from 'node:assert/strict'
 import {DatabaseSync} from 'node:sqlite'
 import {mkdtemp,rm} from 'node:fs/promises'
@@ -62,14 +64,7 @@ for(const failure of ['text-denied','text-unavailable','image-denied','image-una
     const expected=failure.endsWith('unavailable')?'适龄审核暂不可用':failure.startsWith('text')?'本格文字未通过适龄审核':'本格图片未通过适龄审核'
     assert.equal(cell.error,expected)
     assert.equal(submissions,failure.startsWith('text')?0:1)
-    if(failure==='image-denied'){
-      await ok('finish',{id})
-      await ok('save',{id,title:'测试'})
-      const {books}=await ok('shelf')
-      assert.equal(books[0].cover,null)
-      assert.equal((await call('media/'+cell.id)).status,404)
-      return
-    }
+    assert.equal((await call('finish',{id})).status,409)
     recovered=true
     const text=failure==='image-unavailable'?original:'小兔在读绘本'
     const retry={id,cell:cell.id,retryJob:cell.retryJob,text}
@@ -79,7 +74,7 @@ for(const failure of ['text-denied','text-unavailable','image-denied','image-una
     assert.equal(ready.id,cell.id)
     assert.equal(ready.text,text)
     assert.equal((await ok('story/'+id)).cells.length,1)
-    assert.equal(submissions,1)
+    assert.equal(submissions,failure==='image-denied'?2:1)
     assert.equal((await call('media/'+cell.id)).status,200)
   })
 }

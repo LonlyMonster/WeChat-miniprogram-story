@@ -28,12 +28,20 @@ export function initAdmin(db){
   migrateAccounts(db)
   db.exec('BEGIN IMMEDIATE')
   try{
-    const matches=db.prepare("SELECT role FROM users WHERE lower(trim(name))='admin'").all()
+    const matches=db.prepare("SELECT id,role,salt,hash FROM users WHERE lower(trim(name))='admin'").all()
     if(matches.some(row=>row.role!=='admin'))throw Error('历史家庭账号名称冲突，请先处理；未修改任何账号')
-    if(!matches.length){
+    const current=matches[0]
+    const legacy=current && argon2Sync('argon2id',hashOptions('admin15@',current.salt)).equals(current.hash)
+    if(!current || legacy){
+      const password=process.env.STORY_INITIAL_ADMIN_PASSWORD
+      if(!password || !password.trim() || password.length>256 || password==='admin15@')
+        throw Error('请设置独立的 STORY_INITIAL_ADMIN_PASSWORD 后启动')
       const salt=randomBytes(16)
-      const hash=argon2Sync('argon2id',hashOptions('admin15@',salt))
-      db.prepare("INSERT INTO users(name,salt,hash,role) VALUES('admin',?,?,'admin')").run(salt,hash)
+      const hash=argon2Sync('argon2id',hashOptions(password,salt))
+      if(legacy){
+        db.prepare('UPDATE users SET salt=?,hash=? WHERE id=?').run(salt,hash,current.id)
+        db.prepare('DELETE FROM sessions WHERE uid=?').run(current.id)
+      }else db.prepare("INSERT INTO users(name,salt,hash,role) VALUES('admin',?,?,'admin')").run(salt,hash)
     }
     db.exec('COMMIT')
     return !matches.length

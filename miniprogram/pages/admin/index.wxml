@@ -21,7 +21,7 @@
     <view class="user-list"><view wx:for="{{visibleUsers}}" wx:key="name" class="user-row"><text>{{item.name}}</text>
       <view class="login-time"><view>{{item.last.date}}</view><view wx:if="{{item.last.time}}">{{item.last.time}}</view></view>
       <view wx:if="{{item.role==='family'}}" class="user-actions">
-      <button data-name="{{item.name}}" bindtap="reset" disabled="{{busy}}">重置密码</button>
+      <button data-name="{{item.name}}" data-key="{{item.account_key}}" bindtap="reset" disabled="{{busy}}">重置密码</button>
       <button class="remove-user" data-name="{{item.name}}" data-key="{{item.account_key}}" bindtap="removeUser" disabled="{{busy}}">删除用户</button>
     </view><text wx:else>管理员</text></view></view>
     <view wx:if="{{userPages>1}}" class="user-pager"><button disabled="{{userPage===1 || busy}}" bindtap="previousUsers">上一页</button><text>{{userPage}} / {{userPages}}</text><button disabled="{{userPage===userPages || busy}}" bindtap="nextUsers">下一页</button></view>

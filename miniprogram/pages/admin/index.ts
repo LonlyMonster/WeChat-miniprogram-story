@@ -101,12 +101,12 @@ Page({
   },
   async reset(event: any) {
     if (this.data.busy) return
-    const username = event.currentTarget.dataset.name
+    const {name:username,key:accountKey} = event.currentTarget.dataset
     this.setData({ busy: true })
     try {
       const answer = await this.selectComponent('#confirmation').ask({ title: '重置密码', content: '重置「'+username+'」的密码？该账号将在所有设备退出登录。', confirmText: '确认重置' })
       if (!answer.confirm) return
-      const {temporary} = await request('admin/reset', { username })
+      const {temporary} = await request('admin/reset', { username, accountKey })
       await this.selectComponent('#confirmation').ask({ title: username+' 的临时密码', content: temporary+'\n15 分钟内有效，仅可登录一次。请转交给该家长设置新密码。', showCancel: false })
     } catch (error) { notify(error) }
     finally { this.setData({ busy: false }) }

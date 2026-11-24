@@ -51,7 +51,7 @@ Page({
       await request('retry-cell',{id:this.id,cell:this.data.editCell,retryJob:this.data.editJob,text})
       this.cancelRetry()
     } catch(error) { notify(error) }
-    finally { if(this.active){ await this.refresh(); this.setData({busy:false}) } }
+    finally { if(this.active) await this.refresh(); this.setData({busy:false}) }
   },
   async submit(event: any) {
     if (this.data.busy || this.data.voice) return
@@ -84,6 +84,6 @@ Page({
       if (action === 'cell') { this.retryKey = ''; this.setData({ text: '', spoken:false, voiceError:'' }) }
       await this.refresh()
     } catch (error) { notify(error) }
-    finally { if (this.active) this.setData({ busy: false }) }
+    finally { this.setData({ busy: false }) }
   }
 })

@@ -4,6 +4,7 @@ import {transcribePCM} from './speech.mjs'
 import {generation,mediaType} from './generation.mjs'
 import {DatabaseSync} from 'node:sqlite'
 import {randomBytes, randomUUID, timingSafeEqual} from 'node:crypto'
+import {isIP} from 'node:net'
 import {digest,initAdmin} from './accounts.mjs'
 import {readFile} from 'node:fs/promises'
 import {pathToFileURL} from 'node:url'
@@ -49,6 +50,7 @@ export function createApp(filename='stories.sqlite', clock=Date.now,readCredenti
   const settings=modelSettings(db)
   db.exec('CREATE TABLE IF NOT EXISTS reset_audit(at INTEGER,operator INTEGER,target INTEGER)')
   const jobs=generation(db,clock,readCredential)
+  const trustedProxy=process.env.STORY_TRUSTED_PROXY
   const limits=new Map()
   function eraseFamily(uid){
     // Keep billed jobs in the site budget without linking them to a future account or panel.
@@ -97,7 +99,11 @@ export function createApp(filename='stories.sqlite', clock=Date.now,readCredenti
       if(write && ['register','login'].includes(action)){
         const name=required(body.username,'请填写有效用户名',96)
         if(typeof body.password!=='string'||!body.password.length||body.password.length>256) fail(400,'请填写有效密码')
-        for(const key of ['name:'+name,'ip:'+req.socket.remoteAddress]){
+        let address=req.socket.remoteAddress
+        const forwarded=req.headers['x-real-ip']
+        if(trustedProxy && address===trustedProxy && typeof forwarded==='string' && !forwarded.includes('%') && isIP(forwarded))
+          address=isIP(forwarded)===6 ? new URL('http://['+forwarded+']/').hostname : forwarded
+        for(const key of ['name:'+name,'ip:'+address]){
           const entry=limits.get(key)||{count:0,until:now+60000}
           limits.set(key,entry)
           if(++entry.count>30) fail(429,'尝试过多，请稍后再试')
@@ -171,7 +177,8 @@ export function createApp(filename='stories.sqlite', clock=Date.now,readCredenti
           return json({})
         }
         if(write && action==='admin/reset'){
-          const target=query("SELECT id,account_key FROM users WHERE name=? AND role='family'").get(required(body.username,'请选择家庭账号',96))
+          const key=required(body.accountKey,'请重新选择家庭账号',64)
+          const target=query("SELECT id,account_key FROM users WHERE name=? AND account_key=? AND role='family'").get(required(body.username,'请选择家庭账号',96),key)
           if(!target)fail(404,'家庭账号不存在')
           const temporary=randomBytes(9).toString('base64url')
           const salt=randomBytes(16),hash=await digest(temporary,salt)
@@ -324,7 +331,11 @@ export function createApp(filename='stories.sqlite', clock=Date.now,readCredenti
         } catch(e){db.exec('ROLLBACK');throw e}
       }else if(write && action==='finish'){
         if(!story.started || story.state==='saved') fail(409,'请先完成至少一格')
-        query("UPDATE stories SET state='ended' WHERE id=?").run(id)
+        const ended=query(`UPDATE stories SET state='ended' WHERE id=? AND state IN ('draft','ended')
+          AND NOT EXISTS (SELECT 1 FROM cells c WHERE c.story=stories.id AND c.art IS NULL
+            AND (SELECT status FROM image_jobs WHERE cell=c.id AND is_candidate=0 ORDER BY id DESC LIMIT 1)
+              IN ('queued','sending','poll','failed','withheld'))`).run(id)
+        if(!ended.changes)fail(409,'请等待出图完成，并重试失败的画格后再结束故事')
       }else if(write && action==='save'){
         const title=required(body.title,'请填写故事名称',Infinity)
         if(Array.from(title).length>10) fail(400,'故事名称最多 10 字')

@@ -1,4 +1,6 @@
 import test from 'node:test'
+import {randomUUID} from 'node:crypto'
+process.env.STORY_INITIAL_ADMIN_PASSWORD = randomUUID()
 import assert from 'node:assert/strict'
 import {DatabaseSync} from 'node:sqlite'
 import {mkdtemp,rm} from 'node:fs/promises'
