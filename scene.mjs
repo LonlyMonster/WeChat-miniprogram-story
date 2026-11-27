@@ -46,25 +46,14 @@ const sceneRule = [
 ].join('\n')
 
 export async function sceneFor(key,text,history=[],original=null){
-  // 暂停项目适龄审核，恢复时同时启用原文、画面描述和成图三个调用。
-  // await review(key,textModel,text,'本格文字')
+  await review(key,textModel,text,'本格文字')
   let scene=text
   try {
     const result=await ask(key,textModel,sceneRule,JSON.stringify({较早画格:history,待修改画面:original,本格原文:text}))
     if(typeof result.scene==='string' && result.scene.trim() && result.scene.length<=1600)scene=result.scene.trim()
   }catch{}
-  // if(scene!==text)await review(key,textModel,scene,'画面描述')
+  if(scene!==text)await review(key,textModel,scene,'画面描述')
   return scene
-}
-export async function recordAppearance(key,bytes,type,brief){
-  const rule=[featureRule,'根据成图记录清楚可见的角色和场景特征，返回 JSON 对象 {"appearance":"外观记录"}。原文只供识别对象和优先级。核心特征与原文不符时分别说明设定和实际画法，遮挡处不猜测。'].join('\n')
-  try{
-    const result=await ask(key,visionModel,rule,[{type:'text',text:JSON.stringify({本格原文:brief})},{type:'image_url',image_url:{url:'data:'+type+';base64,'+bytes.toString('base64')}}])
-    if(typeof result.appearance==='string' && result.appearance.length<=1600)return result.appearance.trim()
-  }catch{
-    // 特征提取暂不可用时，生成任务继续沿用已保存的文字画面描述。
-  }
-  return ''
 }
 export async function reviewImage(key,bytes,type,brief=''){
   const rule=[reviewRule,featureRule,'未通过时返回 {"approved":false}。通过时返回 {"approved":true,"appearance":"外观记录"}。原文仅供识别对象和优先级。记录已在图中清楚可见的特征；原文明示而画面偏离的核心项注明差异，遮挡处不猜测。'].join('\n')

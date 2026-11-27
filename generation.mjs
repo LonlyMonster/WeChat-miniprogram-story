@@ -1,8 +1,7 @@
 import {spawn} from 'node:child_process'
 import {imageModels} from './image-models.mjs'
 
-import {sceneFor,recordAppearance} from './scene.mjs'
-// import {reviewImage} from './scene.mjs'
+import {sceneFor,reviewImage} from './scene.mjs'
 const root='https://dashscope.aliyuncs.com/api/v1'
 function problem(message){return Object.assign(new Error(message),{status:409})}
 export async function unlock(cipher){
@@ -52,15 +51,17 @@ async function download(url){
   if(!mediaType(bytes))throw Error('未知图片格式')
   return bytes
 }
-async function prepareIllustration(q,key,job){
-  const frames=q(`SELECT c.id,c.text AS 原文,c.scene_description AS 画面描述,
+export function frameDescriptions(q,cell,first){
+  return q(`SELECT c.id,c.text AS 原文,c.scene_description AS 画面描述,
     CASE WHEN c.scene_description IS NULL AND c.version=0 THEN (
       SELECT r.prompt FROM scene_requests r JOIN image_jobs j ON j.id=r.job
       WHERE j.cell=c.id AND j.is_candidate=0 AND j.status='done' ORDER BY j.id DESC LIMIT 1
     ) END AS legacy_prompt FROM cells c
-    WHERE c.story=(SELECT story FROM cells WHERE id=?) AND c.id<=? ORDER BY c.id`).all(job.cell,job.cell)
-  const descriptions=frames.map(frame=>({原文:frame.原文,画面描述:frame.画面描述 ||
+    WHERE c.story=(SELECT story FROM cells WHERE id=?) AND c.id BETWEEN ? AND ? ORDER BY c.id`).all(cell,first,cell).map(frame=>({原文:frame.原文,画面描述:frame.画面描述 ||
     frame.legacy_prompt?.match(/(?:^|\n)本格画面：([\s\S]*?)(?:\n连续性校对：|\n本格原文：|$)/)?.[1] || null}))
+}
+async function prepareIllustration(q,key,job){
+  const descriptions=frameDescriptions(q,job.cell,0)
   const current=descriptions.pop()
   const scene=await sceneFor(key,job.text,descriptions,job.is_candidate?current:null)
   const prompt=['儿童绘本单格插画，细墨线，纯色平涂，简洁浅色背景，画面无文字。',
@@ -148,9 +149,7 @@ export function generation(db,clock,readCredential=unlock){
       if(closed)return
       if(out.task_status==='SUCCEEDED'){
         const bytes=await download(out.results?.[0]?.url)
-        // 暂停项目图片适龄审核。恢复时用下一行替换独立的特征提取调用。
-        // const appearance=await reviewImage(key,bytes,mediaType(bytes),job.text)
-        const appearance=await recordAppearance(key,bytes,mediaType(bytes),job.text)
+        const appearance=await reviewImage(key,bytes,mediaType(bytes),job.text)
         if(closed)return
         db.exec('BEGIN IMMEDIATE')
         try{

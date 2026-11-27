@@ -1,7 +1,7 @@
 import {modelSettings,models} from './admin/server.mjs'
 import http from 'node:http'
 import {transcribePCM} from './speech.mjs'
-import {generation,mediaType} from './generation.mjs'
+import {generation,mediaType,frameDescriptions} from './generation.mjs'
 import {DatabaseSync} from 'node:sqlite'
 import {randomBytes, randomUUID, timingSafeEqual} from 'node:crypto'
 import {isIP} from 'node:net'
@@ -47,6 +47,10 @@ export function createApp(filename='stories.sqlite', clock=Date.now,readCredenti
     CREATE TABLE IF NOT EXISTS cells(id INTEGER PRIMARY KEY, story TEXT REFERENCES stories ON DELETE CASCADE, request TEXT, text TEXT, due INTEGER, art BLOB, UNIQUE(story,request));`)
   try { initAdmin(db) } catch (error) { db.close(); throw error }
   const query=sql=>db.prepare(sql)
+  function invalidateCandidates(cell){
+    query("UPDATE image_jobs SET status='failed' WHERE status='queued' AND id IN (SELECT job FROM candidates WHERE cell=?)").run(cell)
+    query('DELETE FROM candidates WHERE cell=?').run(cell)
+  }
   const settings=modelSettings(db)
   db.exec('CREATE TABLE IF NOT EXISTS reset_audit(at INTEGER,operator INTEGER,target INTEGER)')
   const jobs=generation(db,clock,readCredential)
@@ -268,9 +272,16 @@ export function createApp(filename='stories.sqlite', clock=Date.now,readCredenti
         if(story.state!=='saved') fail(409,'请先保存故事')
         const text=required(body.text,'请填写本格文字',Infinity)
         if(Array.from(text).length>100) fail(400,'本格文字最多 100 字')
-        const updated=query('UPDATE cells SET text=?,scene_description=NULL,version=version+1 WHERE id=? AND story=? AND version=? RETURNING version')
-          .get(text,body.cell,id,body.version)
-        if(!updated) fail(409,'本格已更新，请重新打开故事')
+        db.exec('BEGIN IMMEDIATE')
+        let updated
+        try{
+          const description=frameDescriptions(query,body.cell,body.cell)[0]?.画面描述
+          updated=query('UPDATE cells SET text=?,scene_description=?,version=version+1 WHERE id=? AND story=? AND version=? RETURNING version')
+            .get(text,description??null,body.cell,id,body.version)
+          if(!updated) fail(409,'本格已更新，请重新打开故事')
+          invalidateCandidates(body.cell)
+          db.exec('COMMIT')
+        }catch(e){db.exec('ROLLBACK');throw e}
         return json(updated)
       }
       if(write && mini && action==='delete'){
@@ -309,8 +320,7 @@ export function createApp(filename='stories.sqlite', clock=Date.now,readCredenti
             else if(action==='adopt'){
               if(v.status!=='done'||!v.art)fail(409,'新版尚未生成')
               query('UPDATE cells SET text=?,art=?,scene_description=(SELECT scene_description FROM scene_requests WHERE job=?),version=version+1 WHERE id=?').run(v.text,v.art,v.job,cell.id)
-              query("UPDATE image_jobs SET status='failed' WHERE status='queued' AND id IN (SELECT job FROM candidates WHERE cell=?)").run(cell.id)
-              query('DELETE FROM candidates WHERE cell=?').run(cell.id)
+              invalidateCandidates(cell.id)
             }else{
               query("UPDATE image_jobs SET status='failed' WHERE id=? AND status='queued'").run(v.job)
               query('DELETE FROM candidates WHERE job=?').run(v.job)
