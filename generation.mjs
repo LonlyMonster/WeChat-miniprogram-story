@@ -1,10 +1,13 @@
 import {spawn} from 'node:child_process'
 import {imageModels} from './image-models.mjs'
+import {openCredential} from './credentials.mjs'
 
 import {sceneFor,reviewImage} from './scene.mjs'
 const root='https://dashscope.aliyuncs.com/api/v1'
 function problem(message){return Object.assign(new Error(message),{status:409})}
 export async function unlock(cipher){
+  if(cipher.startsWith('v1:'))return openCredential(cipher)
+  if(process.platform!=='win32')throw Error('迁移至 Linux 后请重新保存模型密钥')
   const script="Add-Type -AssemblyName System.Security; $b=[Convert]::FromBase64String([Console]::In.ReadToEnd()); [Text.Encoding]::UTF8.GetString([Security.Cryptography.ProtectedData]::Unprotect($b,$null,'CurrentUser'))"
   return new Promise((resolve,reject)=>{
     const p=spawn('powershell.exe',['-NoProfile','-NonInteractive','-Command',script],{stdio:['pipe','pipe','ignore'],windowsHide:true})
@@ -83,6 +86,8 @@ export function generation(db,clock,readCredential=unlock){
   db.exec(`CREATE TABLE IF NOT EXISTS image_jobs(id INTEGER PRIMARY KEY,cell INTEGER,uid INTEGER,month TEXT,model TEXT,cents INTEGER,status TEXT,task TEXT,error TEXT,next INTEGER,created INTEGER);
   CREATE INDEX IF NOT EXISTS image_jobs_cell ON image_jobs(cell);
   CREATE INDEX IF NOT EXISTS image_jobs_due ON image_jobs(status,next);`)
+  if(!q("SELECT name FROM pragma_table_info('image_jobs') WHERE name='review_started'").get())
+    db.exec('ALTER TABLE image_jobs ADD COLUMN review_started INTEGER')
   if(!q("SELECT name FROM pragma_table_info('image_jobs') WHERE name='is_candidate'").get())
     db.exec('ALTER TABLE image_jobs ADD COLUMN is_candidate INTEGER NOT NULL DEFAULT 0')
   if(!q("SELECT name FROM pragma_table_info('cells') WHERE name='version'").get())
@@ -169,7 +174,7 @@ export function generation(db,clock,readCredential=unlock){
         q('UPDATE image_jobs SET status=?,error=? WHERE id=?').run(job.status==='poll'?'withheld':'failed',e.message,job.id)
         return
       }
-      const status=sending?(e.rejected?'failed':'unknown'):job.status==='queued'?'failed':clock()-job.created<900000?'poll':'unknown'
+      const status=sending?(e.rejected?'failed':'unknown'):job.status==='queued'?'failed':clock()-(job.review_started??job.created)<900000?'poll':'unknown'
       const detail=sending && e.rejected?e.message:status==='unknown'?'结果待核对，请勿重复提交':'服务暂不可用'
       q('UPDATE image_jobs SET status=?,error=?,next=? WHERE id=?').run(status,detail,clock()+10000,job.id)
     }finally{busy=false}

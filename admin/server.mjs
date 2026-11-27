@@ -7,6 +7,7 @@ import {userInfo} from 'node:os'
 import {pathToFileURL} from 'node:url'
 
 import {imageModels} from '../image-models.mjs'
+import {sealCredential} from '../credentials.mjs'
 
 export const models=Object.keys(imageModels)
 const files=new Map([
@@ -17,6 +18,7 @@ function reject(status,message){throw Object.assign(new Error(message),{status})
 
 // DPAPI binds the encrypted credential to the Windows account running the service.
 export function protect(secret){
+  if(process.platform!=='win32')return sealCredential(secret)
   const script="Add-Type -AssemblyName System.Security; $b=[Convert]::FromBase64String([Console]::In.ReadToEnd()); [Convert]::ToBase64String([Security.Cryptography.ProtectedData]::Protect($b,$null,'CurrentUser'))"
   return new Promise((resolve,reject)=>{
     const child=spawn('powershell.exe',['-NoProfile','-NonInteractive','-Command',script],{windowsHide:true,stdio:['pipe','pipe','ignore']})

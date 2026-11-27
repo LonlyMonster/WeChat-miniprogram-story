@@ -1,5 +1,9 @@
 # 微信小程序本机联调
 
+正式版使用 `https://linjiangushiwu.cn`，体验版真机使用 `https://story-test.linjiangushiwu.cn`。发布前分别核对 HTTPS、request 和 downloadFile 合法域名及后端数据库。
+
+Linux 服务需要固定的环境变量 `STORY_CREDENTIAL_MASTER_KEY`，取值为 32 个随机字节的标准 Base64 编码。可在部署机上用 `openssl rand -base64 32` 生成一次，由密钥管理工具注入服务并独立备份。所有访问同一数据库的服务使用同一值，重启时沿用。首次从 Windows 迁移后，在管理端重新输入并保存模型 API Key，再启用生成任务。
+
 使用 Node.js 24.16 或项目已验证的兼容版本，在仓库根目录运行。开发与线上使用各自的数据库和凭据。
 
 1. 首次启动前，通过部署环境或密钥管理工具设置独立的 `STORY_INITIAL_ADMIN_PASSWORD`（最多 256 个字符）。运行 `node server.mjs` 后以 `admin` 登录。旧库仍使用历史默认密码时，启动会更新该密码并注销旧会话。已自行修改的密码会保留。
