@@ -319,7 +319,7 @@ export function createApp(filename='stories.sqlite', clock=Date.now,readCredenti
             if(action==='candidate-status')result={status:v.status,error:displayJobError(v.error),text:v.text}
             else if(action==='retry-candidate-review'){
               if(v.status==='withheld' && v.error==='适龄审核暂不可用')
-                query("UPDATE image_jobs SET status='poll',error=NULL,next=? WHERE id=?").run(now,v.job)
+                query("UPDATE image_jobs SET status='poll',error=NULL,review_started=?,next=? WHERE id=?").run(now,now,v.job)
               else if(!['poll','done'].includes(v.status))fail(409,'当前候选图无法重审')
             }
             else if(action==='adopt'){
@@ -345,7 +345,7 @@ export function createApp(filename='stories.sqlite', clock=Date.now,readCredenti
             WHERE c.story=? AND c.id=? AND c.art IS NULL ORDER BY j.id DESC LIMIT 1`).get(id,body.cell)
           if(!job || job.id!==body.retryJob || !['failed','withheld'].includes(job.status))fail(409,'本格状态已更新，请刷新')
           if(job.status==='withheld' && job.error==='适龄审核暂不可用' && text===job.text){
-            query("UPDATE image_jobs SET status='poll',error=NULL,next=? WHERE id=?").run(now,job.id)
+            query("UPDATE image_jobs SET status='poll',error=NULL,review_started=?,next=? WHERE id=?").run(now,now,job.id)
           }else{
             if(!jobs.reserve(job.cell,uid))fail(409,'请先配置绘图服务')
             query('UPDATE cells SET text=? WHERE id=?').run(text,job.cell)

@@ -17,6 +17,7 @@ test('A8 候选隔离、失败和放弃、并发采用、首格封面',async t=>
   const db=new DatabaseSync(file)
   t.after(async()=>{await new Promise(r=>app.close(r));db.close();await rm(dir,{recursive:true,force:true})})
   const http=globalThis.fetch
+  let failNextDownload=false
   const png=Buffer.from('89504e470d0a1a0a','hex')
   t.mock.method(globalThis,'fetch',async(url,options)=>{
     if(String(url).endsWith('/chat/completions')){
@@ -28,6 +29,10 @@ test('A8 候选隔离、失败和放弃、并发采用、首格封面',async t=>
       return Response.json({output:{choices:[{message:{content:[{image:'https://test.aliyuncs.com/art'}]}}]}})
     }
     assert.equal(String(url),'https://test.aliyuncs.com/art')
+    if(failNextDownload){
+      failNextDownload=false
+      throw Error('临时下载失败')
+    }
     return new Response(png)
   })
   let token=''
@@ -69,6 +74,8 @@ test('A8 候选隔离、失败和放弃、并发采用、首格封面',async t=>
   const beforeReview=jobCount()
   db.prepare("UPDATE image_jobs SET status='withheld',error='适龄审核暂不可用',task=? WHERE id=?").run('https://test.aliyuncs.com/art',discarded.job)
   assert.equal((await call('retry-candidate-review',discarded,other)).status,404)
+  now+=16*60*1000
+  failNextDownload=true
   await ok('retry-candidate-review',discarded)
   await wait(discarded,'done')
   assert.equal(jobCount(),beforeReview)
