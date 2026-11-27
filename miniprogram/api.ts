@@ -1,7 +1,7 @@
-const storage='story.session.v1'
 const version=wx.getAccountInfoSync().miniProgram.envVersion
 const local=version==='develop' && wx.getDeviceInfo().platform==='devtools' && wx.getStorageSync('story.useLocalApi')===true
 const base=version==='release'?'https://linjiangushiwu.cn/api/mini':local?'http://127.0.0.1:3085/api/mini':'https://story-test.linjiangushiwu.cn/api/mini'
+const storage='story.session.v2:'+base
 export const session=()=>wx.getStorageSync(storage)||''
 export function leave(){
   wx.removeStorageSync(storage)

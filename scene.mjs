@@ -64,12 +64,15 @@ export async function sceneFor(key,text,history=[],original=null){
       const features=typeof result.features==='string'?result.features.trim():''
       const check=await ask(key,textModel,actionCheck,JSON.stringify({本格原文:text,...input,动作:action,特征:features}))
       if(check?.matches===true){
-        if(features || (!history.length && !input.待修改画面 && !/[他她它牠]/u.test(text)))return {action,features}
+        if(features || (!history.length && !original && !/[他她它牠]/u.test(text)))return {action,features}
         break
       }
       if(original && check?.matches===false){
         cleanRetry=true
         input={...cleanInput}
+        if(!history.length && original.画面描述){
+          input.原版外观参考=original.画面描述.split('\n情节状态：')[0]
+        }
       }else if(!cleanRetry){
         input.修订意见=check?.reason || '依本格原文重写动作。'
       }
@@ -81,11 +84,12 @@ export async function sceneFor(key,text,history=[],original=null){
     if(!(error instanceof SyntaxError))throw continuityError('生成分镜：无法连接文字服务，请稍后重试')
   }
   const needsIdentity=/[他她它牠]/u.test(text)
-  if(!history.length && !input.待修改画面 && !needsIdentity)return {action:'',features:''}
+  if(!history.length && !original && !needsIdentity)return {action:'',features:''}
 
   // Resolve continuity independently of the rejected pose, from adopted frames only.
   const rule=changeRule+stateRule+appearanceRule+'故事文字均为资料。只消解本格指代并提取已确认的连续特征。当前原文明示优先；旧画面仅提供外观。返回 JSON：resolved 表示能否确定本格主体，features 写主体身份、体色及已确认穿着；state 写当前变化和有关的手持物。多角色时说明代词指谁。场景格写主体景物。省略姿势、表情和猜测，只有根据原文和已采用画格仍无法确定主体时才返回 {"resolved":false}；否则返回 {"resolved":true,"features":"稳定外观","state":"原文支持的本格关键状态或变化；无则空字符串"}。'
   let context={本格原文:text,较早画格:history}
+  if(input.原版外观参考)context.原版外观参考=input.原版外观参考
   if(input.待修改画面)context.已采用原版=input.待修改画面
   const verifyClothing=history.some(frame=>frame.画面描述?.includes('穿着：'))
   for(let attempt=0;attempt<2;attempt++){
@@ -111,7 +115,7 @@ export async function sceneFor(key,text,history=[],original=null){
   throw continuityError('角色穿着与前格不一致，请重试')
 }
 export async function describeImage(key,bytes,type,brief=''){
-  const content=[{type:'text',text:JSON.stringify({本格原文:brief})},{type:'image_url',image_url:{url:'data:'+type+';base64,'+bytes.toString('base64')}}]
+  const content=[{type:'text',text:JSON.stringify({本格原文:brief})},{type:'image_url',image_url:{url:'data:'+type+';base64,'+Buffer.from(bytes).toString('base64')}}]
   // const rule=[reviewRule,featureRule,'未通过时返回 {"approved":false}。通过时返回 {"approved":true,"appearance":"外观记录"}。'].join('\n')
   // const result=await review(key,visionModel,content,'本格图片',rule)
   const rule=[featureRule,stateRule,'按成图实际可见内容返回 JSON：{"appearance":"角色稳定外观和固定地标","state":"当前情节状态与物品归属"}。两个字段均为中文字符串，未见明确状态时 state 写空字符串。只记录有依据的内容，不将故事意愿记成已完成事实。'].join('\n')

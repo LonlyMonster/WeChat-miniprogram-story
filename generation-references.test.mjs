@@ -212,3 +212,28 @@ test('结构化外观与状态可以读取，缺少外观会显式报错',async 
   assert.match(await describeImage('test',Buffer.from('image'),'image/png'),/白兔.*湖岸[\s\S]*情节状态：.*浅滩/)
   await assert.rejects(describeImage('test',Buffer.from('image'),'image/png'),/缺少稳定外观/)
 })
+test('SQLite 首图补读发送原始图片字节',async t=>{
+  const bytes=Uint8Array.of(0,255,128,32)
+  let url
+  t.mock.method(globalThis,'fetch',async(_,options)=>{
+    url=JSON.parse(options.body).messages[1].content[1].image_url.url
+    return Response.json({choices:[{message:{content:'{"appearance":"白兔"}'}}]})
+  })
+  await describeImage('test',bytes,'image/png')
+  assert.deepEqual(Buffer.from(url.split(',')[1],'base64'),Buffer.from(bytes))
+})
+
+test('首格重画拒绝动作后保留稳定外观并回退补全空特征',async t=>{
+  const calls=[]
+  const replies=[{action:'跳起',features:'白兔'},{matches:false},{action:'坐下',features:''},{matches:true},{resolved:true,features:'白兔红衣'}]
+  t.mock.method(globalThis,'fetch',async(_,options)=>{
+    calls.push(JSON.parse(JSON.parse(options.body).messages[1].content))
+    return Response.json({choices:[{message:{content:JSON.stringify(replies.shift())}}]})
+  })
+  const result=await sceneFor('test','小兔坐下',[],{原文:'跳起',画面描述:'稳定外观：白兔红衣\n情节状态：跳起'})
+  assert.equal(result.features,'白兔红衣')
+  for(const call of calls.slice(2)){
+    assert.match(JSON.stringify(call),/白兔红衣/)
+    assert.doesNotMatch(JSON.stringify(call),/跳起/)
+  }
+})
