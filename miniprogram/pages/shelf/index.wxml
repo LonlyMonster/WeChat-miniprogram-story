@@ -1,6 +1,6 @@
-<image webp="{{true}}" class="wall" src="/watercolor/forest-original.webp" mode="scaleToFill"/><view wx:if="{{loaded}}" class="page bookshelf"><view class="new"><button class="primary" bindtap="start" disabled="{{opening}}"><image class="icon" mode="aspectFit" src="/watercolor/plus.png"/>{{draft ? (draft.state==='ended'?'继续保存':'继续讲') : '讲新故事'}}</button></view>
+<image class="wall" src="/watercolor/forest-original.jpg" mode="scaleToFill"/><view wx:if="{{loaded}}" class="page bookshelf"><view class="new"><button class="primary" bindtap="start" disabled="{{opening}}"><image class="icon" mode="aspectFit" src="/watercolor/plus.png"/>{{draft ? (draft.state==='ended'?'继续保存':'继续讲') : '讲新故事'}}</button></view>
 <view class="top"><text class="brand">{{username}}的书架</text><account family="{{true}}"/></view>
-<view class="cabinet"><image webp="{{true}}" class="wood" mode="widthFix" src="/watercolor/cabinet.webp"/><view wx:if="{{!visibleBooks.length}}" class="empty-message">讲完故事并为它取名，<view>就能收藏第一本漫画。</view></view>
+<view class="cabinet"><image class="wood" mode="widthFix" src="/watercolor/cabinet.png"/><view wx:if="{{!visibleBooks.length}}" class="empty-message">讲完故事并为它取名，<view>就能收藏第一本漫画。</view></view>
     <view wx:if="{{visibleBooks.length}}" class="shelf-grid">
       <view class="book book-{{index}}" wx:for="{{visibleBooks}}" wx:key="id">
         <image class="binding" src="/watercolor/shelf-book.png" mode="aspectFit"/>
@@ -17,3 +17,4 @@
     <button class="page-button" bindtap="next" disabled="{{page===pageNumbers.length}}">下一页</button>
   </view>
 </view>
+<view wx:if="{{loadFailed && !loaded}}" class="page"><button class="primary" bindtap="onShow">重新加载书架</button></view>

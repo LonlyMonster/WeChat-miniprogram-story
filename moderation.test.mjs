@@ -8,7 +8,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {createApp} from './server.mjs'
 
-for(const failure of ['text-denied','text-unavailable','scene-denied','image-denied','image-unavailable','provider-denied']){
+for(const failure of ['appearance-unavailable','provider-denied']){
   test('A6 '+failure,async t=>{
     const dir=await mkdtemp(join(tmpdir(),'story-a6-'))
     const path=join(dir,'test.sqlite')
@@ -19,15 +19,17 @@ for(const failure of ['text-denied','text-unavailable','scene-denied','image-den
     t.after(async()=>{await new Promise(resolve=>app.close(resolve));db.close();await rm(dir,{recursive:true,force:true})})
     db.exec("UPDATE model_settings SET model='qwen-image-2.0',credential='fake',quota=100,budget_cents=1000 WHERE id=1")
     const localFetch=globalThis.fetch
+    const modelCalls=[]
     let submissions=0,recovered=false
     t.mock.method(globalThis,'fetch',async(url,options)=>{
       url=String(url)
       if(url.endsWith('/chat/completions')){
         const {messages}=JSON.parse(options.body)
-        if(messages[0].content.includes('插画师只收到本格文字'))return Response.json({choices:[{message:{content:JSON.stringify({scene:'小兔坐着翻书'})}}]})
-        const stage=Array.isArray(messages[1].content)?'image':messages[1].content==='小兔坐着翻书'?'scene':'text'
-        if(!recovered && failure===stage+'-unavailable')return new Response(null,{status:503})
-        return Response.json({choices:[{message:{content:JSON.stringify({approved:recovered || failure!==stage+'-denied'})}}]})
+        modelCalls.push(messages[0].content)
+        if(typeof messages[1].content==='string' && messages[1].content.startsWith('{"较早画格"'))return Response.json({choices:[{message:{content:JSON.stringify({action:'小兔坐着翻书'})}}]})
+        if(messages[0].content.includes('matches'))return Response.json({choices:[{message:{content:'{"matches":true}'}}]})
+        if(failure==='appearance-unavailable')return new Response(null,{status:503})
+        return Response.json({choices:[{message:{content:'{"appearance":"小兔坐着翻书"}'}}]})
       }
       if(url.endsWith('/multimodal-generation/generation')){
         submissions++
@@ -60,17 +62,23 @@ for(const failure of ['text-denied','text-unavailable','scene-denied','image-den
       }
       assert.fail('等待队列状态超时')
     }
+    if(failure==='appearance-unavailable'){
+      const ready=await waitCell(c=>c.ready)
+      assert.equal((await call('media/'+ready.id)).status,200)
+      assert.equal(modelCalls.length,3)
+      assert.ok(modelCalls.every(rule=>!rule.includes('approved')))
+      return
+    }
     const cell=await waitCell(c=>c.error)
     assert.equal(cell.text,original)
     assert.equal(cell.ready,0)
     assert.ok(cell.retryJob)
     assert.equal((await call('media/'+cell.id)).status,404)
-    const expected=failure==='provider-denied'?'本格未通过绘图服务的内容审核，请修改描述后重试':failure.endsWith('unavailable')?'适龄审核暂不可用':failure.startsWith('text')?'本格文字未通过适龄审核':failure==='scene-denied'?'画面描述未通过适龄审核':'本格图片未通过适龄审核'
-    assert.equal(cell.error,expected)
-    assert.equal(submissions,failure.startsWith('text')||failure==='scene-denied'?0:1)
+    assert.equal(cell.error,'本格未通过绘图服务的内容审核，请修改描述后重试')
+    assert.equal(submissions,1)
     assert.equal((await call('finish',{id})).status,409)
     recovered=true
-    const text=failure==='image-unavailable'?original:'小兔在读绘本'
+    const text='小兔在读绘本'
     const retry={id,cell:cell.id,retryJob:cell.retryJob,text}
     await ok('retry-cell',retry)
     assert.equal((await call('retry-cell',retry)).status,409)
@@ -78,7 +86,7 @@ for(const failure of ['text-denied','text-unavailable','scene-denied','image-den
     assert.equal(ready.id,cell.id)
     assert.equal(ready.text,text)
     assert.equal((await ok('story/'+id)).cells.length,1)
-    assert.equal(submissions,['image-denied','provider-denied'].includes(failure)?2:1)
+    assert.equal(submissions,2)
     assert.equal((await call('media/'+cell.id)).status,200)
   })
 }

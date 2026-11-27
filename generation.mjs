@@ -2,7 +2,7 @@ import {spawn} from 'node:child_process'
 import {imageModels} from './image-models.mjs'
 import {openCredential} from './credentials.mjs'
 
-import {sceneFor,reviewImage} from './scene.mjs'
+import {sceneFor,describeImage,describeStyle} from './scene.mjs'
 const root='https://dashscope.aliyuncs.com/api/v1'
 function problem(message){return Object.assign(new Error(message),{status:409})}
 export async function unlock(cipher){
@@ -57,21 +57,45 @@ async function download(url){
 export function frameDescriptions(q,cell,first){
   return q(`SELECT c.id,c.text AS 原文,c.scene_description AS 画面描述,
     CASE WHEN c.scene_description IS NULL AND c.version=0 THEN (
-      SELECT r.prompt FROM scene_requests r JOIN image_jobs j ON j.id=r.job
+      SELECT CASE WHEN r.appearance_error IS NULL THEN r.prompt END FROM scene_requests r JOIN image_jobs j ON j.id=r.job
       WHERE j.cell=c.id AND j.is_candidate=0 AND j.status='done' ORDER BY j.id DESC LIMIT 1
     ) END AS legacy_prompt FROM cells c
     WHERE c.story=(SELECT story FROM cells WHERE id=?) AND c.id BETWEEN ? AND ? ORDER BY c.id`).all(cell,first,cell).map(frame=>({原文:frame.原文,画面描述:frame.画面描述 ||
-    frame.legacy_prompt?.match(/(?:^|\n)本格画面：([\s\S]*?)(?:\n连续性校对：|\n本格原文：|$)/)?.[1] || null}))
+    (frame.legacy_prompt?.includes('\n本格原文：') && (/^(?:彩色)?儿童绘本单格简笔画|^一幅完整的彩色插画/.test(frame.legacy_prompt))
+      ? frame.legacy_prompt.match(/\n连续特征：([\s\S]+)$/)?.[1]
+      : frame.legacy_prompt?.match(/(?:^|\n|。)本格画面：([\s\S]*?)(?:\n连续性校对：|\n本格原文：|$)/)?.[1]) || null}))
 }
 async function prepareIllustration(q,key,job){
+  const first=q('SELECT id,text,art,scene_description,style_description FROM cells WHERE story=(SELECT story FROM cells WHERE id=?) ORDER BY id LIMIT 1').get(job.cell)
+  if(first.art && !first.scene_description){
+    let appearance
+    try{appearance=await describeImage(key,first.art,mediaType(first.art),first.text)}
+    catch{throw Object.assign(Error('暂未读到首格外观，请重试'),{continuity:true})}
+    const saved=q('UPDATE cells SET scene_description=? WHERE id=? AND art=? AND scene_description IS NULL').run(appearance,first.id,first.art)
+    if(!saved.changes)throw problem('首格已更新，请重试')
+  }
   const descriptions=frameDescriptions(q,job.cell,0)
   const current=descriptions.pop()
-  const scene=await sceneFor(key,job.text,descriptions,job.is_candidate?current:null)
-  const prompt=['儿童绘本单格插画，细墨线，纯色平涂，简洁浅色背景，画面无文字。',
-    '采用童趣、非写实的儿童画风格，像孩子画的简笔画：用几笔概括外形，以略带夸张的姿态表现动作。',
-    '主体和背景都用边缘清晰的纯色色块平涂，每个色块内部平滑均匀，细节用少量简洁线条表示。',
-    '本格画面：'+scene].join('\n')
-  return {scene,prompt}
+  const {action,features}=await sceneFor(key,job.text,descriptions,job.is_candidate?current:null)
+  let style=first.style_description
+  if(first.art && !style){
+    style=await describeStyle(key,first.art,mediaType(first.art))
+    q('UPDATE cells SET style_description=? WHERE id=? AND art=?').run(style,first.id,first.art)
+  }
+  const composition='一幅完整的彩色插画，一个场景铺满整张画布，镜头只呈现一个瞬间，四周没有分隔线。'
+  const prefix=style ? composition+'画面无文字。首格画风：'+style
+    : composition+'儿童绘本简笔画风格，细墨线勾形，主体和道具填满清晰的纯色色块，背景简洁浅色。动作略夸张，画面无文字。'
+  const limit=imageModels[job.model]?.promptLimit || 1600
+  const original=Array.from(job.text)
+  // Long narration leaves room for the visible action and preserves the ending.
+  const brief=original.length>limit/2
+    ? original.slice(0,limit/4).join('')+'…'+original.slice(-Math.floor(limit/4)).join('')
+    : job.text
+  const parts=[prefix,'本格原文：'+brief]
+  if(action)parts.push('本格画面：'+Array.from(action).slice(0,Math.floor(limit/4)).join(''))
+  if(features)parts.push('连续特征：'+features)
+  const prompt=Array.from(parts.join('\n')).slice(0,limit).join('')
+  return prompt
 }
 export function generation(db,clock,readCredential=unlock){
   const q=sql=>db.prepare(sql)
@@ -102,7 +126,7 @@ export function generation(db,clock,readCredential=unlock){
   // An interrupted submission may already have been billed. Never submit it again automatically.
   q("UPDATE image_jobs SET status='unknown',error='提交中断，需核对供应商账单' WHERE status='sending'").run()
   // A queued legacy job has no provider task yet. Release its old reservation for an explicit retry.
-  q("UPDATE image_jobs SET status='failed',error='原模型已升级，请重试本格' WHERE status='queued' AND model IN ('wanx2.0-t2i-turbo','wan2.7-image','wan2.2-t2i-flash')").run()
+  q("UPDATE image_jobs SET status='failed',error='原模型已升级，请重试本格' WHERE status='queued' AND model IN ('wan2.7-image','wan2.2-t2i-flash')").run()
   function reserve(cell,uid){
     if(!q("SELECT name FROM sqlite_master WHERE type='table' AND name='model_settings'").get())return
     const cfg=q('SELECT model,budget_cents,quota,credential IS NOT NULL AS configured FROM model_settings WHERE id=1').get()
@@ -118,6 +142,11 @@ export function generation(db,clock,readCredential=unlock){
     if(!q("SELECT name FROM pragma_table_info(?) WHERE name='scene_description'").get(table))
       db.exec('ALTER TABLE '+table+' ADD COLUMN scene_description TEXT')
   }
+  if(!q("SELECT name FROM pragma_table_info('scene_requests') WHERE name='appearance_error'").get())
+    db.exec('ALTER TABLE scene_requests ADD COLUMN appearance_error TEXT')
+  if(!q("SELECT name FROM pragma_table_info('cells') WHERE name='style_description'").get())
+    db.exec('ALTER TABLE cells ADD COLUMN style_description TEXT')
+  db.exec('CREATE TRIGGER IF NOT EXISTS clear_changed_style AFTER UPDATE OF art ON cells BEGIN UPDATE cells SET style_description=NULL WHERE id=NEW.id; END')
   let busy=false,closed=false
   async function tick(){
     if(busy||closed)return
@@ -136,15 +165,21 @@ export function generation(db,clock,readCredential=unlock){
           q('UPDATE image_jobs SET next=? WHERE id=?').run(clock()+3000,job.id)
           return
         }
-        const {scene,prompt}=await prepareIllustration(q,key,job)
+        const prompt=await prepareIllustration(q,key,job)
         if(closed)return
         if(!q("UPDATE image_jobs SET status='sending' WHERE id=? AND status='queued'").run(job.id).changes)return
         sending=true
-        q("INSERT INTO scene_requests(cell,job,prompt,reference_names,scene_description) VALUES(?,?,?,'[]',?)").run(job.cell,job.id,prompt,scene)
+        q("INSERT INTO scene_requests(cell,job,prompt,reference_names,scene_description) VALUES(?,?,?,'[]',NULL)").run(job.cell,job.id,prompt)
         const input={messages:[{role:'user',content:[{text:prompt}]}]}
         const parameters={size:'1024*1024',n:1,prompt_extend:false,watermark:false}
-        const result=await call('/services/aigc/multimodal-generation/generation',key,{model:job.model,input,parameters},true)
-        const task=result.choices?.[0]?.message?.content?.find(part=>part.image)?.image
+        let task
+        if(job.model==='wanx2.0-t2i-turbo'){
+          const result=await call('/services/aigc/text2image/image-synthesis',key,{model:job.model,input:{prompt},parameters})
+          task=result.task_id
+        }else{
+          const result=await call('/services/aigc/multimodal-generation/generation',key,{model:job.model,input,parameters},true)
+          task=result.choices?.[0]?.message?.content?.find(part=>part.image)?.image
+        }
         if(typeof task!=='string'||!task)throw Error('缺少生成结果')
         if(!closed)q("UPDATE image_jobs SET status='poll',task=?,next=? WHERE id=? AND status='sending'").run(task,clock(),job.id)
         return
@@ -154,11 +189,15 @@ export function generation(db,clock,readCredential=unlock){
       if(closed)return
       if(out.task_status==='SUCCEEDED'){
         const bytes=await download(out.results?.[0]?.url)
-        const appearance=await reviewImage(key,bytes,mediaType(bytes),job.text)
+        let appearance=null,appearanceError=null
+        try{appearance=await describeImage(key,bytes,mediaType(bytes),job.text)}
+        catch(error){
+          appearanceError=error.status?'HTTP '+error.status:error.name==='SyntaxError'?'视觉返回格式异常':error.name==='TimeoutError'?'视觉调用超时':'视觉调用失败'
+        }
         if(closed)return
         db.exec('BEGIN IMMEDIATE')
         try{
-          if(appearance)q("UPDATE scene_requests SET scene_description=? WHERE job=?").run(appearance,job.id)
+          q("UPDATE scene_requests SET scene_description=?,appearance_error=? WHERE job=?").run(appearance,appearanceError,job.id)
           if(job.is_candidate)q('UPDATE candidates SET art=? WHERE job=?').run(bytes,job.id)
           else q('UPDATE cells SET art=?,scene_description=(SELECT scene_description FROM scene_requests WHERE job=?) WHERE id=(SELECT cell FROM image_jobs WHERE id=?)').run(bytes,job.id,job.id)
           q("UPDATE image_jobs SET status='done',error=NULL,task=CASE WHEN ? THEN NULL ELSE task END WHERE id=?").run(Number(hasImageUrl),job.id)
@@ -175,7 +214,7 @@ export function generation(db,clock,readCredential=unlock){
         return
       }
       const status=sending?(e.rejected?'failed':'unknown'):job.status==='queued'?'failed':clock()-(job.review_started??job.created)<900000?'poll':'unknown'
-      const detail=sending && e.rejected?e.message:status==='unknown'?'结果待核对，请勿重复提交':'服务暂不可用'
+      const detail=e.continuity || (sending && e.rejected)?e.message:status==='unknown'?'结果待核对，请勿重复提交':'服务暂不可用'
       q('UPDATE image_jobs SET status=?,error=?,next=? WHERE id=?').run(status,detail,clock()+10000,job.id)
     }finally{busy=false}
   }

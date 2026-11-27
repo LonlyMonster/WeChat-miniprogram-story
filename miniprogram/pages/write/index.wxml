@@ -1,4 +1,4 @@
-<image webp="{{true}}" class="wall" mode="scaleToFill" src="/watercolor/writing.webp"/>
+<image class="wall" mode="scaleToFill" src="/watercolor/writing.jpg"/>
 <view class="page">
   <view wx:if="{{state==='draft'}}">
     <view class="panel"><view class="title forest-title">讲第 {{cells.length+1}} 格</view>

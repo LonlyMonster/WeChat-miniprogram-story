@@ -9,7 +9,7 @@ Linux 服务需要固定的环境变量 `STORY_CREDENTIAL_MASTER_KEY`，取值�
 1. 首次启动前，通过部署环境或密钥管理工具设置独立的 `STORY_INITIAL_ADMIN_PASSWORD`（最多 256 个字符）。运行 `node server.mjs` 后以 `admin` 登录。旧库仍使用历史默认密码时，启动会更新该密码并注销旧会话。已自行修改的密码会保留。
 2. 服务监听本机 3085 端口。使用反向代理时，将 `STORY_TRUSTED_PROXY` 设为直连代理的 IP（如 `127.0.0.1`），并让代理覆盖 `X-Real-IP` 为真实客户端地址。仅在该地址的连接均由受信代理发起时启用此设置。
 3. 在微信开发者工具中选择「导入项目」，选择包含 project.config.json 的仓库根目录。项目已填写 AppID 并启用 TypeScript 编译。用已授权的开发者微信扫码。
-4. 模拟器连接本机 API；开发项目允许本地调试域名。体验版/真机使用 HTTPS，计划地址为 https://story-test.linjiangushiwu.cn。完成备案、DNS、证书、后端部署后配置 request 和 downloadFile 合法域名，真机联调时启用域名校验。
+4. 模拟器和体验版默认连接 https://story-test.linjiangushiwu.cn。仅在开发版模拟器联调本机服务时，在 Console 执行 `wx.setStorageSync('story.useLocalApi', true)` 后重新编译；切回体验域名时执行 `wx.removeStorageSync('story.useLocalApi')` 后重新编译。完成备案、DNS、证书、后端部署后配置 request 和 downloadFile 合法域名，真机联调时启用域名校验。
 5. 用原家庭账号登录并打开一本旧故事，再用 admin 登录核对管理首页。右上角「账号」支持主动改密、退出。每次改密后，用第二台设备的旧会话确认已失效。
 
 小程序管理端和本机管理工具共用模型配置。管理员可保存配置，或在用户管理中确认重置家庭账号密码。临时密码有效期为 15 分钟，只可登录一次。Linux 部署前仍需替换 Windows DPAPI 凭据读写，部署就绪后再用测试域名验收真实出图。
