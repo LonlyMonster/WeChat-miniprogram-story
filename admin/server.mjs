@@ -6,7 +6,9 @@ import {readFile} from 'node:fs/promises'
 import {userInfo} from 'node:os'
 import {pathToFileURL} from 'node:url'
 
-export const models=['wanx2.0-t2i-turbo','wan2.2-t2i-flash']
+import {imageModels} from '../image-models.mjs'
+
+export const models=Object.keys(imageModels)
 const files=new Map([
   ['/', ['index.html','text/html']], ['/admin.js',['admin.js','text/javascript']],
   ['/style.css',['../docs/ui/style.css','text/css']], ['/book-mark.svg',['../docs/ui/book-mark.svg','image/svg+xml']]
@@ -28,7 +30,8 @@ export function protect(secret){
 }
 export function modelSettings(db,encrypt=protect){
   db.exec(`CREATE TABLE IF NOT EXISTS model_settings(id INTEGER PRIMARY KEY CHECK(id=1),model TEXT,budget_cents INTEGER,quota INTEGER,credential TEXT,version INTEGER);
-    INSERT OR IGNORE INTO model_settings VALUES(1,'wanx2.0-t2i-turbo',5000,20,NULL,0);
+    INSERT OR IGNORE INTO model_settings VALUES(1,'qwen-image-2.0',5000,20,NULL,0);
+    UPDATE model_settings SET model='qwen-image-2.0',version=version+1 WHERE id=1 AND model IN ('wanx2.0-t2i-turbo','wan2.7-image','wan2.2-t2i-flash');
     CREATE TABLE IF NOT EXISTS config_audit(at TEXT,operator TEXT,fields TEXT);`)
   const current=()=>db.prepare('SELECT model,budget_cents/100.0 AS budget,quota,credential IS NOT NULL AS configured,version FROM model_settings WHERE id=1').get()
   async function save(data,operator,authorize=()=>{}){

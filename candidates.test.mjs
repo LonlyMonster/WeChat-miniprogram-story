@@ -23,8 +23,10 @@ test('A8 候选隔离、失败和放弃、并发采用、首格封面',async t=>
       const {messages}=JSON.parse(options.body)
       return Response.json({choices:[{message:{content:JSON.stringify({approved:messages[1].content!=='拒绝样本'})}}]})
     }
-    if(String(url).endsWith('/image-synthesis'))return Response.json({output:{task_id:'sample'}})
-    if(String(url).includes('/tasks/'))return Response.json({output:{task_status:'SUCCEEDED',results:[{url:'https://test.aliyuncs.com/art'}]}})
+    if(String(url).endsWith('/multimodal-generation/generation')){
+      if(JSON.parse(options.body).input.messages[0].content[0].text.includes('拒绝样本'))return Response.json({code:'DataInspectionFailed'},{status:400})
+      return Response.json({output:{choices:[{message:{content:[{image:'https://test.aliyuncs.com/art'}]}}]}})
+    }
     assert.equal(String(url),'https://test.aliyuncs.com/art')
     return new Response(png)
   })
@@ -41,7 +43,7 @@ test('A8 候选隔离、失败和放弃、并发采用、首格封面',async t=>
   const initial=(await book()).cells
   const cell=initial[0].id
   const original=Buffer.from(await (await call('media/'+cell)).arrayBuffer())
-  db.exec("UPDATE model_settings SET credential='fake',budget_cents=1000,quota=100 WHERE id=1")
+  db.exec("UPDATE model_settings SET model='qwen-image-2.0',credential='fake',budget_cents=1000,quota=100 WHERE id=1")
   async function generate(text,cell=initial[0].id){
     const data={id,cell,version:0,text,requestId:text}
     const v=await ok('candidate',data)
@@ -78,6 +80,15 @@ test('A8 候选隔离、失败和放弃、并发采用、首格封面',async t=>
   assert.deepEqual(Buffer.from(await (await call('media/'+initial[1].id)).arrayBuffer()),secondArt)
   const cover=(await ok('shelf')).books[0].cover
   assert.deepEqual(Buffer.from(await (await call('media/'+cover)).arrayBuffer()),png)
+  const queued=db.prepare("INSERT INTO image_jobs(cell,status,is_candidate,next) VALUES(?,'queued',1,?)").run(cell,now+60000).lastInsertRowid
+  db.prepare("INSERT INTO candidates(job,cell,base,request,text) VALUES(?,?,1,'pending','新草稿')").run(queued,cell)
+  const description=db.prepare('SELECT scene_description FROM cells WHERE id=?')
+  const before=description.get(cell).scene_description
+  assert.ok(before)
+  await ok('caption',{id,cell,version:1,text:'修正图注'})
+  assert.equal(description.get(cell).scene_description,before)
+  assert.equal(db.prepare('SELECT status FROM image_jobs WHERE id=?').get(queued).status,'failed')
+  assert.equal(db.prepare('SELECT job FROM candidates WHERE job=?').get(queued),undefined)
 })
 test('到期草稿任务与后续故事格隔离',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'story-expiry-'))

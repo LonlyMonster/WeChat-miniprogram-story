@@ -81,7 +81,7 @@ test('服务重启后继续出图、按序取封面并持久重读', async t => 
     body:body && JSON.stringify(body)
   })
   for(const path of ['/','/app.js','/style.css','/forest.svg','/book-mark.svg']){
-    assert.equal((await fetch(base+path)).status,200)
+    assert.equal((await fetch(base+path)).status,404)
   }
   const session=await call('register',{username:'测试',password:'secret'})
   cookie=session.headers.get('set-cookie').split(';')[0]

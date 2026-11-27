@@ -11,9 +11,32 @@
     </view></swiper-item>
   </swiper>
 </view>
-<view wx:else class="page"><view class="panel"><view class="title">{{title}}</view>
-  <view wx:for="{{cells}}" wx:key="id" class="read-cell"><view class="read-art">
-    <image wx:if="{{item.path}}" class="panel-image" src="{{item.path}}" mode="widthFix" data-index="{{index}}" bindtap="preview"/>
-    <text wx:else>{{item.error||'图片待加载'}}</text>
-    <button wx:if="{{item.ready}}" class="edit-badge" bindtap="edit" data-cell="{{item.id}}" aria-label="修改这格"><image class="icon" src="/watercolor/edit.png" mode="aspectFit"/></button>
-  </view><view>第 {{index+1}} 格 · {{item.text}}</view></view></view></view>
+<view wx:else class="page" bindtouchstart="startSwipe" bindtouchend="finishSwipe" bindtouchcancel="cancelSwipe"><view class="panel"><view class="title title-row">
+    <view class="book-name">
+      <input wx:if="{{editingTitle}}" focus="{{editingTitle}}" maxlength="10" value="{{title}}" bindblur="saveTitle" aria-label="修改故事标题"/>
+      <text wx:elif="{{editing && !savingTitle}}" bindtap="editTitle" aria-role="button" aria-label="修改书名《{{title}}》">{{title}}</text>
+      <text wx:else>{{title}}</text>
+    </view>
+    <view class="book-actions">
+      <button bindtap="toggleEditing" disabled="{{removing || !title}}" aria-label="{{editing ? '完成编辑' : '编辑故事'}}">
+        <image class="icon" src="{{editing ? '/watercolor/check.png' : '/watercolor/edit.png'}}" mode="aspectFit"/>
+      </button>
+      <button bindtap="remove" disabled="{{removing || savingTitle || !title}}" aria-label="删除故事">
+        <image class="icon" src="/watercolor/delete.png" mode="aspectFit"/>
+      </button>
+    </view>
+  </view>
+  <view wx:for="{{cells}}" wx:key="id" class="read-cell">
+    <view class="read-art" data-index="{{index}}" data-cell="{{item.id}}" bindtap="{{editing ? 'edit' : 'preview'}}" aria-label="{{editing ? '修改' : '查看'}}第{{index+1}}格">
+      <image wx:if="{{item.path}}" class="panel-image" src="{{item.path}}" mode="widthFix"/>
+      <text wx:else>{{item.error||'图片待加载'}}</text>
+    </view>
+    <view class="caption">
+      <text class="cell-number">第 {{index+1}} 格</text>
+      <textarea wx:if="{{editing && editingCaption===item.id}}" focus="{{true}}" auto-height maxlength="-1" value="{{item.text}}" data-index="{{index}}" bindblur="saveCaption" aria-label="修改本格文字，最多100字"/>
+      <view wx:elif="{{editing}}" class="caption-edit" data-index="{{index}}" bindtap="editCaption" aria-role="button" aria-label="修改第{{index+1}}格文字">{{item.text}}</view>
+      <view wx:else>{{item.text}}</view>
+    </view>
+  </view>
+</view></view>
+<story-dialog id="confirmation"/>

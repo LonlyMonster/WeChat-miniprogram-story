@@ -8,7 +8,6 @@
           <image wx:if="{{item.coverPath}}" class="cover-art" src="{{item.coverPath}}" mode="aspectFit"/>
           <view class="details">{{item.label}}</view>
         </view>
-        <button class="delete" data-id="{{item.id}}" bindtap="remove" aria-label="删除{{item.title}}"><image class="delete-icon" src="/watercolor/delete.png" mode="aspectFit"/></button>
       </view>
     </view>
   </view>
@@ -18,4 +17,3 @@
     <button class="page-button" bindtap="next" disabled="{{page===pageNumbers.length}}">下一页</button>
   </view>
 </view>
-<story-dialog id="confirmation"/>

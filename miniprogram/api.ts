@@ -24,8 +24,14 @@ export async function request(path:string,data?:object):Promise<any>{
   }))
 }
 export function media(id:number,candidate=false):Promise<string>{
+  return downloadImage((candidate?'candidate-media/':'media/')+id)
+}
+export function coverImage(id:number):Promise<string>{
+  return downloadImage('cover/'+id)
+}
+function downloadImage(path:string):Promise<string>{
   const token=session()
-  return new Promise(resolve=>wx.downloadFile({url:base+(candidate?'/candidate-media/':'/media/')+id,header:{Authorization:'Bearer '+token},
+  return new Promise(resolve=>wx.downloadFile({url:base+'/'+path,header:{Authorization:'Bearer '+token},
     success:r=>resolve(r.statusCode===200 && token===session()?r.tempFilePath:''),fail:()=>resolve('')
   }))
 }

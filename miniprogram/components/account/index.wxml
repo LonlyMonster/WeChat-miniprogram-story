@@ -1,4 +1,4 @@
-<view class="menu-wrap"><view wx:if="{{open}}" class="outside" bindtap="toggle"/><button class="account-trigger" aria-label="账号菜单" bindtap="toggle"><image class="icon" mode="aspectFit" src="/watercolor/account.png"/>账号</button>
+<view class="menu-wrap"><view wx:if="{{open}}" class="outside" bindtap="toggle"/><button class="account-trigger" aria-label="账号菜单" bindtap="toggle"><image class="icon" mode="aspectFit" src="/watercolor/shelf-account.svg"/></button>
   <view class="menu" wx:if="{{open}}">
     <button class="menu-item" bindtap="change"><image class="icon" mode="aspectFit" src="/watercolor/lock.png"/>修改密码</button>
     <button class="menu-item" bindtap="logout"><image class="icon" mode="aspectFit" src="/watercolor/logout.png"/>退出账号</button>

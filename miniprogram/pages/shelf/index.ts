@@ -1,4 +1,4 @@
-import { request, media, notify } from '../../api'
+import { request, coverImage, notify } from '../../api'
 
 const pageSize = 4
 Page({
@@ -26,7 +26,7 @@ Page({
     this.setData({ page, visibleBooks, pageNumbers: Array.from({ length: count }, (_, i) => i + 1) })
     await Promise.all(visibleBooks.map(async (book, index) => {
       if (!book.cover || book.coverPath) return
-      book.coverPath = await media(book.cover)
+      book.coverPath = await coverImage(book.cover)
       if (revision === this.revision) this.setData({ ['visibleBooks[' + index + '].coverPath']: book.coverPath })
     }))
   },
@@ -43,16 +43,5 @@ Page({
     } catch (error) { notify(error) }
     finally { this.setData({ opening: false }) }
   },
-  open(event: any) { wx.navigateTo({ url: '/pages/read/index?id=' + encodeURIComponent(event.currentTarget.dataset.id) }) },
-  async remove(event: any) {
-    const book = this.books.find(item => item.id === event.currentTarget.dataset.id)
-    if (!book) return
-    try {
-      const result = await this.selectComponent('#confirmation').ask({ title: '删除故事', content: '确定删除《' + book.title + '》吗？删除后无法恢复。', confirmText: '删除', confirmColor: '#a74434' })
-      if (!result.confirm) return
-      await request('delete', { id: book.id })
-      this.books = this.books.filter(item => item.id !== book.id)
-      this.showPage(this.data.page)
-    } catch (error) { notify(error) }
-  }
+  open(event: any) { wx.navigateTo({ url: '/pages/read/index?id=' + encodeURIComponent(event.currentTarget.dataset.id) }) }
 })

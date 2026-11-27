@@ -20,12 +20,12 @@ test('A7 同号并发、丢失响应重试、账号配额、全站预算和结�
   await start()
   const db=new DatabaseSync(file)
   t.after(async()=>{await new Promise(r=>app.close(r));db.close();await rm(dir,{recursive:true,force:true})})
-  db.exec("UPDATE model_settings SET model='wanx2.0-t2i-turbo',credential='fake',budget_cents=8,quota=1 WHERE id=1")
+  db.exec("UPDATE model_settings SET model='qwen-image-2.0',credential='fake',budget_cents=40,quota=1 WHERE id=1")
   const localFetch=globalThis.fetch
   let submissions=0
   t.mock.method(globalThis,'fetch',async(url)=>{
     if(String(url).endsWith('/chat/completions'))return Response.json({choices:[{message:{content:'{"approved":true}'}}]})
-    assert.ok(String(url).endsWith('/image-synthesis'))
+    assert.ok(String(url).endsWith('/multimodal-generation/generation'))
     submissions++
     throw Error('模拟供应商收到提交后连接断开')
   })
@@ -44,12 +44,12 @@ test('A7 同号并发、丢失响应重试、账号配额、全站预算和结�
   // Replay a committed request as if the client never received the first response.
   assert.equal((await cell(a,'one')).status,200)
   assert.equal(count(),1)
-  assert.deepEqual({...ledger()},{jobs:1,cents:4})
+  assert.deepEqual({...ledger()},{jobs:1,cents:20})
   assert.equal((await cell(a,'two')).status,409)
   const race=await Promise.all([cell(b,'last'),cell(c,'last')])
   assert.deepEqual(race.map(r=>r.status).sort(),[200,409])
   assert.equal(count(),2)
-  assert.deepEqual({...ledger()},{jobs:2,cents:8})
+  assert.deepEqual({...ledger()},{jobs:2,cents:40})
   for(let i=0;i<60 && db.prepare("SELECT count(*) AS n FROM image_jobs WHERE status='unknown'").get().n<2;i++)
     await new Promise(r=>setTimeout(r,50))
   assert.equal(submissions,2)
@@ -70,5 +70,5 @@ test('A7 同号并发、丢失响应重试、账号配额、全站预算和结�
   assert.equal(db.prepare('SELECT status FROM image_jobs WHERE id=?').get(jobs[0].id).status,'unknown')
   assert.equal((await cell(a,'one')).status,200)
   assert.equal(submissions,2)
-  assert.deepEqual({...ledger()},{jobs:2,cents:8})
+  assert.deepEqual({...ledger()},{jobs:2,cents:40})
 })

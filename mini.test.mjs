@@ -3,7 +3,7 @@ import {randomUUID} from 'node:crypto'
 process.env.STORY_INITIAL_ADMIN_PASSWORD = randomUUID()
 import assert from 'node:assert/strict'
 import {DatabaseSync} from 'node:sqlite'
-import {mkdtemp,rm} from 'node:fs/promises'
+import {mkdtemp,rm,readFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {initAdmin} from './accounts.mjs'
@@ -40,10 +40,34 @@ test('小程序角色分流、后台隔离、双端改密、退出',async t=>{
  assert.equal((await call('delete',{id},family)).status,409)
  assert.equal((await call('cell',{id,text:'小兔看书',requestId:'first'},family)).status,200)
  await call('finish',{id},family)
+ assert.equal((await call('resume',{id},family)).status,200)
+ assert.equal((await call('story/'+id,undefined,family)).state,'draft')
+ assert.equal((await call('cell',{id,text:'小兔翻页',requestId:'second'},family)).status,200)
+ assert.equal((await call('finish',{id},family)).status,200)
  await call('save',{id,title:'森林'},family)
+ assert.equal((await call('rename',{id,title:'森林里的书'},family)).status,200)
+ assert.equal((await call('story/'+id,undefined,family)).title,'森林里的书')
  const other=await call('register',{username:'neighbor',password:'neighbor'})
  assert.equal((await call('delete',{id},other.token)).status,404)
- assert.equal((await call('shelf',undefined,family)).books.length,1)
+ const [firstCell]=(await call('story/'+id,undefined,family)).cells
+ const caption={id,cell:firstCell.id,version:firstCell.version,text:'小兔轻轻翻开了森林里的第一本故事书。'}
+ assert.equal((await call('caption',caption,other.token)).status,404)
+ assert.equal((await call('caption',{...caption,text:'字'.repeat(101)},family)).status,400)
+ assert.equal((await call('caption',caption,family)).status,200)
+ assert.equal((await call('caption',{...caption,text:'旧版修改'},family)).status,409)
+ assert.equal((await call('story/'+id,undefined,family)).cells[0].text,caption.text)
+ const shelf=(await call('shelf',undefined,family)).books
+ assert.equal(shelf.length,1)
+ const db=new DatabaseSync(path)
+ const {id:cover}=db.prepare('SELECT id FROM cells WHERE story=? ORDER BY id LIMIT 1').get(id)
+ db.prepare('UPDATE cells SET art=? WHERE id=?').run(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>'),cover)
+ db.close()
+ const coverUrl='http://127.0.0.1:'+server.address().port+'/api/mini/cover/'+cover
+ const ownCover=await fetch(coverUrl,{headers:{Authorization:'Bearer '+family}})
+ assert.equal(ownCover.status,200)
+ assert.equal(ownCover.headers.get('content-type'),'image/svg+xml')
+ const otherCover=await fetch(coverUrl,{headers:{Authorization:'Bearer '+other.token}})
+ assert.equal(otherCover.status,404)
  assert.equal((await call('delete',{id},family)).status,200)
  assert.equal((await call('shelf',undefined,family)).books.length,0)
  assert.equal((await call('story/'+id,undefined,family)).status,404)
@@ -139,4 +163,15 @@ test('只接受受信直连代理覆盖的客户端 IP，并保留账号限流',
    assert.equal(await login('same','192.0.2.2'),429)
   }finally{await new Promise(r=>app.close(r))}
  }
+})
+
+test('书架只提供阅读入口，书内通过图标进入编辑后可直接点书名和插图', async () => {
+  const template = page => readFile(new URL('./miniprogram/pages/' + page + '/index.wxml', import.meta.url), 'utf8')
+  const [shelf, read] = await Promise.all([template('shelf'), template('read')])
+  assert.doesNotMatch(shelf, /bindtap="remove"/)
+  assert.match(read, /bindtap="remove"/)
+  assert.match(read, /bindtap="toggleEditing"/)
+  assert.match(read, /<button[^>]*bindtap="remove"[^>]*>\s*<image[^>]*src="\/watercolor\/delete\.png"/)
+  assert.match(read, /<text[^>]*wx:elif="{{editing && !savingTitle}}"[^>]*bindtap="editTitle"/)
+  assert.match(read, /<view class="read-art"[^>]*bindtap="{{editing \? 'edit' : 'preview'}}"/)
 })

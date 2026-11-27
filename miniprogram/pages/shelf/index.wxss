@@ -11,8 +11,6 @@ page{height:100%;overflow:hidden}
 .book-cover{position:absolute;inset:0;width:100%;height:100%}
 .cover-art{position:absolute;left:12%;top:19%;width:84%;height:74%}
 .details{position:absolute;top:5%;left:16%;right:6%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;text-align:center;font:bold 26rpx/1.35 serif}
-.delete,.edit-badge{position:absolute;right:7%;bottom:8%;padding:4rpx;width:46rpx;height:46rpx;min-height:0;background:#fff7e4;border:1px solid #b49a6d;border-radius:10rpx}
-.delete-icon{width:32rpx;height:32rpx}
 .empty-message{position:absolute;top:25%;left:0;width:100%;transform:translateY(-50%);text-align:center;font-weight:600}
 .pager{margin:29rpx 15rpx 0}
 .pager .page-button,.pager .pick{

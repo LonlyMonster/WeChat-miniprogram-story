@@ -50,7 +50,7 @@ async function shelf(){
   reset()
   const data=await api('shelf')
   screen.innerHTML='<div class="shelfHero"><div class="shelfHero-copy"><p>'+escape(data.username)+'的故事屋</p><h1>我的书架</h1>'+button(data.draft?'open':'start',data.draft?(data.draft.state==='ended'?'继续保存':'继续讲'):'＋ 讲新故事',true)+'</div><img src="/forest.svg" alt=""></div><h2>已保存的故事</h2><div class="shelf">'+
-    (data.books.map(book=>'<button class="book" data-action="open" data-id="'+book.id+'">'+(book.cover?'<img src="/api/media/'+book.cover+'" alt="">':'<small data-cover="'+book.id+'">封面生成中</small>')+'<span><b>'+escape(shelfTitle(book.title))+'</b><small>'+book.count+' 格 · '+new Date(book.saved).toLocaleDateString()+'</small></span></button>').join('')||'<p>讲完故事并为它取名，就能收藏第一本漫画。</p>')+'</div>'
+    (data.books.map(book=>'<button class="book" data-action="open" data-id="'+book.id+'">'+(book.cover?'<img src="/api/cover/'+book.cover+'" alt="">':'<small data-cover="'+book.id+'">封面生成中</small>')+'<span><b>'+escape(shelfTitle(book.title))+'</b><small>'+book.count+' 格 · '+new Date(book.saved).toLocaleDateString()+'</small></span></button>').join('')||'<p>讲完故事并为它取名，就能收藏第一本漫画。</p>')+'</div>'
   if(data.draft) screen.querySelector('.shelfHero button').dataset.id=data.draft.id
 }
 function tiles(){
@@ -194,7 +194,7 @@ setInterval(async()=>{
       const {books}=await api('shelf')
       if(version===revision) for(const book of books){
         const label=screen.querySelector('[data-cover="'+book.id+'"]')
-        if(label && book.cover){const image=new Image();image.src='/api/media/'+book.cover;image.alt='';label.replaceWith(image)}
+        if(label && book.cover){const image=new Image();image.src='/api/cover/'+book.cover;image.alt='';label.replaceWith(image)}
       }
     }
   }catch(e){if(version===revision)message.textContent=e.message}finally{polling=false}

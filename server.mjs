@@ -1,20 +1,16 @@
 import {modelSettings,models} from './admin/server.mjs'
 import http from 'node:http'
 import {transcribePCM} from './speech.mjs'
-import {generation,mediaType} from './generation.mjs'
+import {generation,mediaType,frameDescriptions} from './generation.mjs'
 import {DatabaseSync} from 'node:sqlite'
 import {randomBytes, randomUUID, timingSafeEqual} from 'node:crypto'
 import {isIP} from 'node:net'
 import {digest,initAdmin} from './accounts.mjs'
-import {readFile} from 'node:fs/promises'
 import {pathToFileURL} from 'node:url'
+import {coverThumbnails} from './cover.mjs'
 
 
 const day = 86400000
-const assets = new Map([
-  ['/', ['index.html','text/html']], ['/app.js',['app.js','text/javascript']],
-  ...['style.css','forest.svg','book-mark.svg'].map(name=>['/'+name,['docs/ui/'+name,name.endsWith('.css')?'text/css':'image/svg+xml']])
-])
 function fail(status, message) { throw Object.assign(new Error(message), {status}) }
 function required(value, message, max) {
   if (typeof value !== 'string' || !value.trim() || value.length > max) fail(400,message)
@@ -37,6 +33,10 @@ async function input(req, maxBytes=65536) {
   fail(400,'提交内容无效')
 }
 
+function displayJobError(error){
+  return error==='DataInspectionFailed'?'本格未通过绘图服务的内容审核，请修改描述后重试':error
+}
+
 export function createApp(filename='stories.sqlite', clock=Date.now,readCredential) {
   const db=new DatabaseSync(filename)
   db.exec(`PRAGMA foreign_keys=ON;
@@ -47,11 +47,16 @@ export function createApp(filename='stories.sqlite', clock=Date.now,readCredenti
     CREATE TABLE IF NOT EXISTS cells(id INTEGER PRIMARY KEY, story TEXT REFERENCES stories ON DELETE CASCADE, request TEXT, text TEXT, due INTEGER, art BLOB, UNIQUE(story,request));`)
   try { initAdmin(db) } catch (error) { db.close(); throw error }
   const query=sql=>db.prepare(sql)
+  function invalidateCandidates(cell){
+    query("UPDATE image_jobs SET status='failed' WHERE status='queued' AND id IN (SELECT job FROM candidates WHERE cell=?)").run(cell)
+    query('DELETE FROM candidates WHERE cell=?').run(cell)
+  }
   const settings=modelSettings(db)
   db.exec('CREATE TABLE IF NOT EXISTS reset_audit(at INTEGER,operator INTEGER,target INTEGER)')
   const jobs=generation(db,clock,readCredential)
   const trustedProxy=process.env.STORY_TRUSTED_PROXY
   const limits=new Map()
+  const thumbnail=coverThumbnails()
   function eraseFamily(uid){
     // Keep billed jobs in the site budget without linking them to a future account or panel.
     query("UPDATE image_jobs SET uid=NULL,cell=NULL,status=CASE WHEN status='queued' THEN 'failed' ELSE status END WHERE uid=?").run(uid)
@@ -79,11 +84,6 @@ export function createApp(filename='stories.sqlite', clock=Date.now,readCredenti
     const json=value=>{res.setHeader('Content-Type','application/json; charset=utf-8');res.end(JSON.stringify(value))}
     try {
       const path=req.url.split('?')[0]
-      if(req.method==='GET' && assets.has(path)){
-        const [file,type]=assets.get(path)
-        res.setHeader('Content-Type',type+'; charset=utf-8')
-        return res.end(await readFile(new URL(file,import.meta.url)))
-      }
       const mini=path.startsWith('/api/mini/')
       const action=path.slice(mini?10:5)
       if(!path.startsWith('/api/')) fail(404,'页面不存在')
@@ -231,6 +231,24 @@ export function createApp(filename='stories.sqlite', clock=Date.now,readCredenti
         query('INSERT INTO stories(id,uid) VALUES(?,?)').run(id,uid)
         return json({id})
       }
+      if(!write && action.startsWith('cover/')){
+        const cell=query(`SELECT c.art FROM cells c JOIN stories s ON s.id=c.story
+          WHERE c.id=? AND s.uid=? AND s.state='saved'
+          AND c.id=(SELECT min(id) FROM cells WHERE story=s.id)`).get(action.slice(6),uid)
+        if(!cell?.art)fail(404,'封面不存在')
+        let bytes=Buffer.from(cell.art)
+        let type=mediaType(bytes)||'image/svg+xml'
+        if(type!=='image/svg+xml'){
+          try{
+            bytes=await thumbnail(bytes)
+            type='image/webp'
+          }catch{
+            console.error('封面缩略图生成失败，请检查 Python 和 Pillow')
+          }
+        }
+        res.setHeader('Content-Type',type)
+        return res.end(bytes)
+      }
       if(!write && (action.startsWith('media/') || action.startsWith('candidate-media/'))){
         const cell=action.startsWith('media/')?query('SELECT art FROM cells JOIN stories ON stories.id=cells.story WHERE cells.id=? AND uid=?').get(action.slice(6),uid):
           query('SELECT v.art FROM candidates v JOIN cells c ON c.id=v.cell JOIN stories s ON s.id=c.story WHERE v.job=? AND s.uid=? AND v.base=c.version').get(action.split('/')[1],uid)
@@ -247,7 +265,24 @@ export function createApp(filename='stories.sqlite', clock=Date.now,readCredenti
           CASE WHEN j.status IN ('failed','withheld') THEN j.id END AS retryJob
           FROM cells c LEFT JOIN image_jobs j ON j.id=(SELECT max(id) FROM image_jobs WHERE cell=c.id AND is_candidate=0)
           WHERE c.story=? ORDER BY c.id`).all(id)
+        for(const cell of cells)cell.error=displayJobError(cell.error)
         return json({id,state:story.state,title:story.title,cells})
+      }
+      if(write && mini && action==='caption'){
+        if(story.state!=='saved') fail(409,'请先保存故事')
+        const text=required(body.text,'请填写本格文字',Infinity)
+        if(Array.from(text).length>100) fail(400,'本格文字最多 100 字')
+        db.exec('BEGIN IMMEDIATE')
+        let updated
+        try{
+          const description=frameDescriptions(query,body.cell,body.cell)[0]?.画面描述
+          updated=query('UPDATE cells SET text=?,scene_description=?,version=version+1 WHERE id=? AND story=? AND version=? RETURNING version')
+            .get(text,description??null,body.cell,id,body.version)
+          if(!updated) fail(409,'本格已更新，请重新打开故事')
+          invalidateCandidates(body.cell)
+          db.exec('COMMIT')
+        }catch(e){db.exec('ROLLBACK');throw e}
+        return json(updated)
       }
       if(write && mini && action==='delete'){
         if(story.state!=='saved') fail(409,'只能删除已保存的故事')
@@ -281,12 +316,11 @@ export function createApp(filename='stories.sqlite', clock=Date.now,readCredenti
           }else{
             const v=query('SELECT v.*,j.status,j.error FROM candidates v JOIN image_jobs j ON j.id=v.job WHERE v.cell=? AND v.job=?').get(cell.id,body.job)
             if(!v || v.base!==cell.version)fail(409,'版本已更新，请返回阅读页刷新')
-            if(action==='candidate-status')result={status:v.status,error:v.error,text:v.text}
+            if(action==='candidate-status')result={status:v.status,error:displayJobError(v.error),text:v.text}
             else if(action==='adopt'){
               if(v.status!=='done'||!v.art)fail(409,'新版尚未生成')
-              query('UPDATE cells SET text=?,art=?,version=version+1 WHERE id=?').run(v.text,v.art,cell.id)
-              query("UPDATE image_jobs SET status='failed' WHERE status='queued' AND id IN (SELECT job FROM candidates WHERE cell=?)").run(cell.id)
-              query('DELETE FROM candidates WHERE cell=?').run(cell.id)
+              query('UPDATE cells SET text=?,art=?,scene_description=(SELECT scene_description FROM scene_requests WHERE job=?),version=version+1 WHERE id=?').run(v.text,v.art,v.job,cell.id)
+              invalidateCandidates(cell.id)
             }else{
               query("UPDATE image_jobs SET status='failed' WHERE id=? AND status='queued'").run(v.job)
               query('DELETE FROM candidates WHERE job=?').run(v.job)
@@ -336,9 +370,17 @@ export function createApp(filename='stories.sqlite', clock=Date.now,readCredenti
             AND (SELECT status FROM image_jobs WHERE cell=c.id AND is_candidate=0 ORDER BY id DESC LIMIT 1)
               IN ('queued','sending','poll','failed','withheld'))`).run(id)
         if(!ended.changes)fail(409,'请等待出图完成，并重试失败的画格后再结束故事')
-      }else if(write && action==='save'){
+      }else if(write && action==='resume'){
+        if(story.state==='saved') fail(409,'故事已保存到书架')
+        query("UPDATE stories SET state='draft' WHERE id=? AND state='ended'").run(id)
+      }else if(write && (action==='save' || action==='rename')){
         const title=required(body.title,'请填写故事名称',Infinity)
         if(Array.from(title).length>10) fail(400,'故事名称最多 10 字')
+        if(action==='rename'){
+          if(story.state!=='saved') fail(409,'请先保存故事')
+          query("UPDATE stories SET title=? WHERE id=? AND state='saved'").run(title,id)
+          return json({})
+        }
         if(story.state==='draft') fail(409,'请先结束故事')
         query("UPDATE stories SET state='saved',title=?,saved=? WHERE id=? AND state='ended'").run(title,now,id)
       }else fail(404,'页面不存在')
