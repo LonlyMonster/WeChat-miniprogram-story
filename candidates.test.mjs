@@ -22,7 +22,7 @@ test('A8 候选隔离、失败和放弃、并发采用、首格封面',async t=>
   t.mock.method(globalThis,'fetch',async(url,options)=>{
     if(String(url).endsWith('/chat/completions')){
       const {messages}=JSON.parse(options.body)
-      return Response.json({choices:[{message:{content:JSON.stringify({approved:messages[1].content!=='拒绝样本'})}}]})
+      return Response.json({choices:[{message:{content:JSON.stringify(Array.isArray(messages[1].content)?{appearance:'白兔，蓝背带裤',style:'铅笔细线轮廓'}:{resolved:true,features:'白兔，蓝背带裤'})}}]})
     }
     if(String(url).endsWith('/multimodal-generation/generation')){
       if(JSON.parse(options.body).input.messages[0].content[0].text.includes('拒绝样本'))return Response.json({code:'DataInspectionFailed'},{status:400})
@@ -66,6 +66,8 @@ test('A8 候选隔离、失败和放弃、并发采用、首格封面',async t=>
   const denied=await generate('拒绝样本')
   await wait(denied,'failed')
   assert.equal((await call('candidate-media/'+denied.job)).status,404)
+  db.prepare('UPDATE image_jobs SET error=? WHERE id=?').run('角色穿着与前格不一致，请重试',denied.job)
+  assert.equal((await ok('candidate-status',denied)).error,'这张插画暂时未能生成。')
   await ok('discard',denied)
   const secondArt=Buffer.from(await (await call('media/'+initial[1].id)).arrayBuffer())
   const discarded=await generate('放弃样本',initial[1].id)

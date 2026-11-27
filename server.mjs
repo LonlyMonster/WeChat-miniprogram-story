@@ -34,6 +34,7 @@ async function input(req, maxBytes=65536) {
 }
 
 function displayJobError(error){
+  if(typeof error==='string' && /^(角色穿着与前格|核对穿着：)/.test(error))return '这张插画暂时未能生成。'
   return error==='DataInspectionFailed'?'本格未通过绘图服务的内容审核，请修改描述后重试':error
 }
 
