@@ -1,4 +1,4 @@
-<image webp="{{true}}" class="wall" mode="scaleToFill" src="/watercolor/forest-original.webp"/>
+<image class="wall" mode="scaleToFill" src="/watercolor/forest-original.jpg"/>
 
 <view wx:if="{{viewing}}" class="viewer">
   <button class="viewer-close" bindtap="closeViewer" aria-label="关闭单格查看"><image class="icon" src="/watercolor/close.png" mode="aspectFit"/></button>

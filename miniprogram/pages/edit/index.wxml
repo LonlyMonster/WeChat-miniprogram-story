@@ -1,4 +1,4 @@
-<image webp="{{true}}" class="wall" mode="scaleToFill" src="/watercolor/writing.webp"/>
+<image class="wall" mode="scaleToFill" src="/watercolor/writing.jpg"/>
 <view class="page"><view class="panel">
   <view class="title">{{stage==='compare'?'第':'修改第'}} {{number||'…'}} 格{{stage==='compare'?' · 版本对照':''}}</view>
   <block wx:if="{{stage==='edit'}}"><view class="sub">{{voice==='recording'?'正在听…':'每格最多讲 60 秒'}}</view>

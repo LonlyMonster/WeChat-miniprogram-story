@@ -36,7 +36,12 @@
         "value": "assets"
       }
     ],
-    "include": []
+    "include": [
+      {
+        "type": "folder",
+        "value": "watercolor"
+      }
+    ]
   },
   "editorSetting": {}
 }

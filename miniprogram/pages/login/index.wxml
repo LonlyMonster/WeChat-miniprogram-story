@@ -1,4 +1,4 @@
-<image webp="{{true}}" class="wall" src="/watercolor/forest-original.webp" mode="scaleToFill"/>
+<image class="wall" src="/watercolor/forest-original.jpg" mode="scaleToFill"/>
 <view class="page"><view wx:if="{{checking}}" class="muted">正在检查登录状态…</view>
 <form wx:else class="panel" bindsubmit="submit"><view class="title">{{signup?'创建家庭账号':'登录我的书架'}}</view>
 <label>用户名<view class="field"><image class="icon" mode="aspectFit" src="/watercolor/account.png"/><input name="username" maxlength="96" placeholder="用户名"/></view></label>

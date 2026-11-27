@@ -1,5 +1,5 @@
 <page-meta page-style="{{section==='users'?'overflow:hidden;':''}}"/>
-<image webp="{{true}}" class="wall" mode="scaleToFill" src="/watercolor/forest-original.webp"/>
+<image class="wall" mode="scaleToFill" src="/watercolor/forest-original.jpg"/>
 <view wx:if="{{allowed}}" class="page {{section==='users'?'users-page':''}}">
   <view class="top"><text class="brand">故事屋管理</text><account/></view>
   <view class="tabs">

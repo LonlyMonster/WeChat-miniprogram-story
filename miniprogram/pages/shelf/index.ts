@@ -1,13 +1,22 @@
-import { request, coverImage, notify } from '../../api'
+import { request, coverImage, notify, session, leave, accept } from '../../api'
 
 const pageSize = 4
 Page({
-  data: { username: '', loaded: false, visibleBooks: [], page: 1, pageNumbers: [], draft: null, opening: false },
+  data: { username: '', loaded: false, loadFailed: false, visibleBooks: [], page: 1, pageNumbers: [], draft: null, opening: false },
   books: [] as any[],
   revision: 0,
 
   async onShow() {
+    if (!session()) { leave(); return }
     try {
+      this.setData({ loadFailed: false })
+      if (!this.data.loaded) {
+        const me = await request('me')
+        if (me.mustChange || me.role === 'admin') {
+          accept(session(), me.role, me.mustChange)
+          return
+        }
+      }
       const shelf = await request('shelf')
       this.books = shelf.books.map((book: any) => ({
         ...book, date: new Date(book.saved).toLocaleDateString(),
@@ -15,7 +24,12 @@ Page({
       }))
       this.setData({ username: shelf.username, draft: shelf.draft, loaded: true })
       this.showPage(this.data.page)
-    } catch (error) { notify(error) }
+    } catch (error) {
+      if (session()) {
+        this.setData({ loadFailed: true })
+        notify(error)
+      }
+    }
   },
 
   async showPage(target: number) {
