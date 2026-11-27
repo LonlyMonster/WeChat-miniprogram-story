@@ -34,7 +34,8 @@
     <view class="title">给故事起个名字</view>
     <form class="name-form" bindsubmit="submit" data-action="save">
       <view class="name-field"><input aria-label="故事名称（最多 10 字）" class="name-input" name="title" maxlength="10" placeholder="输入故事名称（最多 10 字）"/></view>
-      <button class="primary name-save" form-type="submit" disabled="{{busy}}">保存到书架</button>
+      <view class="name-actions"><button bindtap="submit" data-action="resume" disabled="{{busy}}">继续讲故事</button>
+      <button class="primary name-save" form-type="submit" disabled="{{busy}}">保存到书架</button></view>
     </form>
   </view>
   <button wx:if="{{!state && loadFailed}}" bindtap="refresh">重新加载故事</button>

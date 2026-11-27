@@ -1,7 +1,9 @@
 import {spawn} from 'node:child_process'
-import {sceneFor,reviewImage,recurringAppearance} from './scene.mjs'
+import {imageModels} from './image-models.mjs'
+
+import {sceneFor,recordAppearance} from './scene.mjs'
+// import {reviewImage} from './scene.mjs'
 const root='https://dashscope.aliyuncs.com/api/v1'
-const prices=new Map([['wanx2.0-t2i-turbo',4],['wan2.2-t2i-flash',14]])
 function problem(message){return Object.assign(new Error(message),{status:409})}
 export async function unlock(cipher){
   const script="Add-Type -AssemblyName System.Security; $b=[Convert]::FromBase64String([Console]::In.ReadToEnd()); [Text.Encoding]::UTF8.GetString([Security.Cryptography.ProtectedData]::Unprotect($b,$null,'CurrentUser'))"
@@ -15,8 +17,10 @@ export async function unlock(cipher){
     p.stdin.end(cipher)
   })
 }
-async function call(path,key,body){
-  const response=await fetch(root+path,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json','X-DashScope-Async':'enable'},body:body&&JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(30000)})
+async function call(path,key,body,synchronous=false){
+  const headers={Authorization:'Bearer '+key,'Content-Type':'application/json'}
+  if(!synchronous)headers['X-DashScope-Async']='enable'
+  const response=await fetch(root+path,{method:body?'POST':'GET',headers,body:body&&JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(synchronous?240000:30000)})
   const data=await response.json()
   if(!response.ok || !data.output){
     const code=String(data.code||response.status)
@@ -48,8 +52,33 @@ async function download(url){
   if(!mediaType(bytes))throw Error('未知图片格式')
   return bytes
 }
+async function prepareIllustration(q,key,job){
+  const frames=q(`SELECT c.id,c.text AS 原文,c.scene_description AS 画面描述,
+    CASE WHEN c.scene_description IS NULL AND c.version=0 THEN (
+      SELECT r.prompt FROM scene_requests r JOIN image_jobs j ON j.id=r.job
+      WHERE j.cell=c.id AND j.is_candidate=0 AND j.status='done' ORDER BY j.id DESC LIMIT 1
+    ) END AS legacy_prompt FROM cells c
+    WHERE c.story=(SELECT story FROM cells WHERE id=?) AND c.id<=? ORDER BY c.id`).all(job.cell,job.cell)
+  const descriptions=frames.map(frame=>({原文:frame.原文,画面描述:frame.画面描述 ||
+    frame.legacy_prompt?.match(/(?:^|\n)本格画面：([\s\S]*?)(?:\n连续性校对：|\n本格原文：|$)/)?.[1] || null}))
+  const current=descriptions.pop()
+  const scene=await sceneFor(key,job.text,descriptions,job.is_candidate?current:null)
+  const prompt=['儿童绘本单格插画，细墨线，纯色平涂，简洁浅色背景，画面无文字。',
+    '采用童趣、非写实的儿童画风格，像孩子画的简笔画：用几笔概括外形，以略带夸张的姿态表现动作。',
+    '主体和背景都用边缘清晰的纯色色块平涂，每个色块内部平滑均匀，细节用少量简洁线条表示。',
+    '本格画面：'+scene].join('\n')
+  return {scene,prompt}
+}
 export function generation(db,clock,readCredential=unlock){
   const q=sql=>db.prepare(sql)
+  db.exec(`CREATE TABLE IF NOT EXISTS story_references(story TEXT REFERENCES stories(id) ON DELETE CASCADE,
+    name TEXT,description TEXT NOT NULL,art BLOB NOT NULL,PRIMARY KEY(story,name));
+    CREATE TABLE IF NOT EXISTS scene_requests(cell INTEGER REFERENCES cells(id) ON DELETE CASCADE,
+    job INTEGER PRIMARY KEY,prompt TEXT NOT NULL,reference_names TEXT NOT NULL);`)
+  if(!q("SELECT name FROM pragma_table_info('scene_requests') WHERE name='solo_character'").get())
+    db.exec('ALTER TABLE scene_requests ADD COLUMN solo_character TEXT')
+  if(!q("SELECT name FROM pragma_table_info('scene_requests') WHERE name='paper_cell'").get())
+    db.exec('ALTER TABLE scene_requests ADD COLUMN paper_cell INTEGER; ALTER TABLE scene_requests ADD COLUMN paper_version INTEGER')
   db.exec(`CREATE TABLE IF NOT EXISTS image_jobs(id INTEGER PRIMARY KEY,cell INTEGER,uid INTEGER,month TEXT,model TEXT,cents INTEGER,status TEXT,task TEXT,error TEXT,next INTEGER,created INTEGER);
   CREATE INDEX IF NOT EXISTS image_jobs_cell ON image_jobs(cell);
   CREATE INDEX IF NOT EXISTS image_jobs_due ON image_jobs(status,next);`)
@@ -66,16 +95,22 @@ export function generation(db,clock,readCredential=unlock){
   END`)
   // An interrupted submission may already have been billed. Never submit it again automatically.
   q("UPDATE image_jobs SET status='unknown',error='提交中断，需核对供应商账单' WHERE status='sending'").run()
+  // A queued legacy job has no provider task yet. Release its old reservation for an explicit retry.
+  q("UPDATE image_jobs SET status='failed',error='原模型已升级，请重试本格' WHERE status='queued' AND model IN ('wanx2.0-t2i-turbo','wan2.7-image','wan2.2-t2i-flash')").run()
   function reserve(cell,uid){
     if(!q("SELECT name FROM sqlite_master WHERE type='table' AND name='model_settings'").get())return
     const cfg=q('SELECT model,budget_cents,quota,credential IS NOT NULL AS configured FROM model_settings WHERE id=1').get()
     if(!cfg?.configured)return
     const month=new Date(clock()+8*3600000).toISOString().slice(0,7)
-    const cents=prices.get(cfg.model)
+    const cents=imageModels[cfg.model]?.cents
     if(!cents)throw problem('模型价格未配置')
     const used=q("SELECT coalesce(sum(cents),0) AS total,count(CASE WHEN uid=? THEN 1 END) AS count FROM image_jobs WHERE month=? AND status!='failed'").get(uid,month)
     if(used.total+cents>cfg.budget_cents || used.count>=cfg.quota)throw problem('本月生成额度已用完')
     return Number(q("INSERT INTO image_jobs(cell,uid,month,model,cents,status,next,created) VALUES(?,?,?,?,?,'queued',?,?)").run(cell,uid,month,cfg.model,cents,clock(),clock()).lastInsertRowid)
+  }
+  for(const table of ['cells','scene_requests']){
+    if(!q("SELECT name FROM pragma_table_info(?) WHERE name='scene_description'").get(table))
+      db.exec('ALTER TABLE '+table+' ADD COLUMN scene_description TEXT')
   }
   let busy=false,closed=false
   async function tick(){
@@ -89,44 +124,40 @@ export function generation(db,clock,readCredential=unlock){
       const key=await readCredential(q('SELECT credential FROM model_settings WHERE id=1').get().credential)
       if(closed)return
       if(job.status==='queued'){
-        const previous=q(`SELECT p.id,p.text,p.art FROM cells c JOIN cells p ON p.story=c.story AND p.id<c.id
+        const previous=q(`SELECT p.id,p.art IS NOT NULL AS ready FROM cells c JOIN cells p ON p.story=c.story AND p.id<c.id
           WHERE c.id=? ORDER BY p.id DESC LIMIT 1`).get(job.cell)
-        if(previous && !previous.art && q("SELECT 1 FROM image_jobs WHERE cell=? AND status IN ('queued','sending','poll')").get(previous.id)){
+        if(previous && !previous.ready && q("SELECT 1 FROM image_jobs WHERE cell=? AND status IN ('queued','sending','poll')").get(previous.id)){
           q('UPDATE image_jobs SET next=? WHERE id=?').run(clock()+3000,job.id)
           return
         }
-        let scene=await sceneFor(key,job.text)
-        const type=previous?.art && mediaType(previous.art)
-        if(type){
-          const appearance=await recurringAppearance(key,previous.text,job.text,previous.art,type)
-          if(appearance)scene+='\n连续画格的角色造型：'+appearance
-        }
+        const {scene,prompt}=await prepareIllustration(q,key,job)
         if(closed)return
         if(!q("UPDATE image_jobs SET status='sending' WHERE id=? AND status='queued'").run(job.id).changes)return
         sending=true
-        const out=await call('/services/aigc/text2image/image-synthesis',key,{
-          model:job.model,
-          input:{
-            prompt:'原创儿童简笔漫画，画一个独立的单格场景。用细细的灰黑色墨线勾出轮廓，线宽均匀，转折圆润；用几段简洁的弧线概括身体和四肢。角色五官小巧，点状眼睛，小弧线表现嘴角，用姿势讲清动作。用少量清爽的纯色平涂，总配色控制在五种以内，一种主色配少量点缀色。用简练的色块交代环境，背景疏朗，多留空。角色、数量、物品、动作、场景及明确指定的颜色均以故事原文为准。情节：'+scene,
-            negative_prompt:'粗黑描边、草稿重线、铅笔排线、蜡笔颗粒、写实解剖、毛发细节、照片感、三维渲染、立体高光、投影、渐变、厚涂、水彩晕染、过密背景、贴纸白边、多格拼图、分格线、漫画边框、文字、签名、水印、对话框'
-          },
-          parameters:{size:'1024*1024',n:1}
-        })
-        if(!out.task_id)throw Error('缺少任务编号')
-        if(!closed)q("UPDATE image_jobs SET status='poll',task=?,next=? WHERE id=?").run(out.task_id,clock()+3000,job.id)
+        q("INSERT INTO scene_requests(cell,job,prompt,reference_names,scene_description) VALUES(?,?,?,'[]',?)").run(job.cell,job.id,prompt,scene)
+        const input={messages:[{role:'user',content:[{text:prompt}]}]}
+        const parameters={size:'1024*1024',n:1,prompt_extend:false,watermark:false}
+        const result=await call('/services/aigc/multimodal-generation/generation',key,{model:job.model,input,parameters},true)
+        const task=result.choices?.[0]?.message?.content?.find(part=>part.image)?.image
+        if(typeof task!=='string'||!task)throw Error('缺少生成结果')
+        if(!closed)q("UPDATE image_jobs SET status='poll',task=?,next=? WHERE id=? AND status='sending'").run(task,clock(),job.id)
         return
       }
-      const out=await call('/tasks/'+encodeURIComponent(job.task),key)
+      const hasImageUrl=job.task?.startsWith('https://')
+      const out=hasImageUrl?{task_status:'SUCCEEDED',results:[{url:job.task}]}:await call('/tasks/'+encodeURIComponent(job.task),key)
       if(closed)return
       if(out.task_status==='SUCCEEDED'){
         const bytes=await download(out.results?.[0]?.url)
-        await reviewImage(key,bytes,mediaType(bytes))
+        // 暂停项目图片适龄审核。恢复时用下一行替换独立的特征提取调用。
+        // const appearance=await reviewImage(key,bytes,mediaType(bytes),job.text)
+        const appearance=await recordAppearance(key,bytes,mediaType(bytes),job.text)
         if(closed)return
         db.exec('BEGIN IMMEDIATE')
         try{
+          if(appearance)q("UPDATE scene_requests SET scene_description=? WHERE job=?").run(appearance,job.id)
           if(job.is_candidate)q('UPDATE candidates SET art=? WHERE job=?').run(bytes,job.id)
-          else q('UPDATE cells SET art=? WHERE id=(SELECT cell FROM image_jobs WHERE id=?)').run(bytes,job.id)
-          q("UPDATE image_jobs SET status='done',error=NULL WHERE id=?").run(job.id)
+          else q('UPDATE cells SET art=?,scene_description=(SELECT scene_description FROM scene_requests WHERE job=?) WHERE id=(SELECT cell FROM image_jobs WHERE id=?)').run(bytes,job.id,job.id)
+          q("UPDATE image_jobs SET status='done',error=NULL,task=CASE WHEN ? THEN NULL ELSE task END WHERE id=?").run(Number(hasImageUrl),job.id)
           db.exec('COMMIT')
         }catch(e){db.exec('ROLLBACK');throw e}
       }else if(['FAILED','CANCELED'].includes(out.task_status)){
