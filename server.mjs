@@ -294,7 +294,7 @@ export function createApp(filename='stories.sqlite', clock=Date.now,readCredenti
         }catch(e){db.exec('ROLLBACK');throw e}
         return json({})
       }
-      if(write && ['candidate','candidate-status','adopt','discard'].includes(action)){
+      if(write && ['candidate','candidate-status','retry-candidate-review','adopt','discard'].includes(action)){
         const cell=query("SELECT * FROM cells WHERE story=? AND id=?").get(id,body.cell)
         if(story.state!=='saved'||!cell?.art)fail(409,'请刷新后选择已完成的故事格')
         db.exec('BEGIN IMMEDIATE')
@@ -317,6 +317,11 @@ export function createApp(filename='stories.sqlite', clock=Date.now,readCredenti
             const v=query('SELECT v.*,j.status,j.error FROM candidates v JOIN image_jobs j ON j.id=v.job WHERE v.cell=? AND v.job=?').get(cell.id,body.job)
             if(!v || v.base!==cell.version)fail(409,'版本已更新，请返回阅读页刷新')
             if(action==='candidate-status')result={status:v.status,error:displayJobError(v.error),text:v.text}
+            else if(action==='retry-candidate-review'){
+              if(v.status==='withheld' && v.error==='适龄审核暂不可用')
+                query("UPDATE image_jobs SET status='poll',error=NULL,next=? WHERE id=?").run(now,v.job)
+              else if(!['poll','done'].includes(v.status))fail(409,'当前候选图无法重审')
+            }
             else if(action==='adopt'){
               if(v.status!=='done'||!v.art)fail(409,'新版尚未生成')
               query('UPDATE cells SET text=?,art=?,scene_description=(SELECT scene_description FROM scene_requests WHERE job=?),version=version+1 WHERE id=?').run(v.text,v.art,v.job,cell.id)

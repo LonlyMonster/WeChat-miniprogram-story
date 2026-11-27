@@ -1,10 +1,13 @@
 import {spawn} from 'node:child_process'
 import {imageModels} from './image-models.mjs'
+import {openCredential} from './credentials.mjs'
 
 import {sceneFor,reviewImage} from './scene.mjs'
 const root='https://dashscope.aliyuncs.com/api/v1'
 function problem(message){return Object.assign(new Error(message),{status:409})}
 export async function unlock(cipher){
+  if(cipher.startsWith('v1:'))return openCredential(cipher)
+  if(process.platform!=='win32')throw Error('迁移至 Linux 后请重新保存模型密钥')
   const script="Add-Type -AssemblyName System.Security; $b=[Convert]::FromBase64String([Console]::In.ReadToEnd()); [Text.Encoding]::UTF8.GetString([Security.Cryptography.ProtectedData]::Unprotect($b,$null,'CurrentUser'))"
   return new Promise((resolve,reject)=>{
     const p=spawn('powershell.exe',['-NoProfile','-NonInteractive','-Command',script],{stdio:['pipe','pipe','ignore'],windowsHide:true})

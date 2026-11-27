@@ -65,6 +65,13 @@ test('A8 候选隔离、失败和放弃、并发采用、首格封面',async t=>
   const secondArt=Buffer.from(await (await call('media/'+initial[1].id)).arrayBuffer())
   const discarded=await generate('放弃样本',initial[1].id)
   await wait(discarded,'done')
+  const jobCount=()=>db.prepare('SELECT count(*) AS n FROM image_jobs').get().n
+  const beforeReview=jobCount()
+  db.prepare("UPDATE image_jobs SET status='withheld',error='适龄审核暂不可用',task=? WHERE id=?").run('https://test.aliyuncs.com/art',discarded.job)
+  assert.equal((await call('retry-candidate-review',discarded,other)).status,404)
+  await ok('retry-candidate-review',discarded)
+  await wait(discarded,'done')
+  assert.equal(jobCount(),beforeReview)
   assert.equal((await call('candidate-media/'+discarded.job,undefined,other)).status,404)
   await ok('discard',discarded)
   assert.deepEqual((await book()).cells,initial)
